@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+pnpm-lock.yaml
+yarn.lock
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+
+# Build outputs
+dist/
+build/
+.turbo/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Uploads
+uploads/
+
+# Prisma
+/prisma/generated/
+/apps/api/prisma/generated/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
