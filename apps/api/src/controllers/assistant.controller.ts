@@ -25,7 +25,8 @@ export const askAi = async (req: Request, res: Response, next: NextFunction) => 
             return;
         }
 
-        const result = await assistantService.askGemini(message, role || 'User');
+        const result = await assistantService.askAI(message, role || 'User');
+
         res.status(200).json(result);
     } catch (error) {
         next(error);

@@ -1,5 +1,6 @@
 import prisma from '../config/prisma';
 import { AppError } from '../utils/AppError';
+import { AiService } from './ai.service';
 
 export class MatchService {
     // Find matches for a specific load
@@ -49,6 +50,7 @@ export class MatchService {
             is_available: true
         }));
 
+        const aiService = new AiService();
         // Call Python AI
         const aiResults = await aiService.getDriverMatchScore(loadForAi, driversForAi);
 
@@ -67,7 +69,7 @@ export class MatchService {
             aiResults.forEach((r: any) => aiScoreMap.set(r.driver_id, r.score));
         }
 
-        const matches = [];
+        // const matches = []; // Removed duplicate declaration
 
         for (const vehicle of vehicles) {
             const driverId = vehicle.driver?.id || vehicle.id;

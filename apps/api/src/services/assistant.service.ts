@@ -3,6 +3,7 @@ import axios from 'axios';
 import { env } from '../config/env';
 import { MatchService } from './match.service';
 import { RoadsideService } from './roadside.service';
+import { callGrokAPI } from './aiService';
 
 const matchService = new MatchService();
 const roadsideService = new RoadsideService();
@@ -113,6 +114,7 @@ export class AssistantService {
 
                 case 'GREETING':
                     response = "Hello! I'm your TruckNet AI Assistant. How can I help you today?";
+                    action = null;
                     break;
             }
         } catch (error) {
@@ -141,10 +143,37 @@ export class AssistantService {
     }
 
 
-    async askGemini(message: string, role: string) {
-        // Feature 1, 2, 3: Replaced with Internal Heuristic AI.
-        // Google Gemini integration has been removed as per strict architectural requirements.
-        return { reply: "I am running on internal logic now. Gemini AI has been disabled." };
+    async askAI(message: string, role: string) {
+
+        try {
+            const prompt = `
+            You remain "TruckNet India – Logistics AI Assistant".
+            Role: You are talking to a ${role}.
+            Context: TruckNet is an Indian logistics platform.
+            
+            Guidelines:
+            - Suggest truck types (e.g., Tata Ace for small loads, 10-Tyre for heavy).
+            - Explain booking/trip status.
+            - Help owners with pricing guidance.
+            - Help drivers understand earnings.
+            - DO NOT accept/reject bookings.
+            - DO NOT assign drivers/vehicles.
+            - DO NOT trigger payments.
+            - Keep answers short, professional, and helpful.
+            `;
+
+            const messages = [
+                { role: 'system' as const, content: prompt },
+                { role: 'user' as const, content: message }
+            ];
+
+            const text = await callGrokAPI(messages);
+
+            return { reply: text };
+        } catch (error: any) {
+            console.error("Grok API Error in AssistantService:", error.message);
+            return { reply: `I'm currently having trouble connecting to the AI brain. Error: ${error.message}` };
+        }
     }
 }
 

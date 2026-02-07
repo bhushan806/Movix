@@ -9,8 +9,11 @@ const envSchema = z.object({
     JWT_SECRET: z.string(),
     JWT_REFRESH_SECRET: z.string(),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    GEMINI_API_KEY: z.string(),
+    GEMINI_API_KEY: z.string().optional(),
+    GROQ_API_KEY: z.string().optional(),
+    OLLAMA_HOST: z.string().optional(),
 });
+
 
 const envVars = envSchema.safeParse(process.env);
 
