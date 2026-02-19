@@ -1,10 +1,12 @@
-import { Request, Response } from 'express';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../middlewares/auth.middleware';
 import Transaction from '../models/Transaction';
 
 // Get Summary Stats & Transactions
-export const getFinanceOverview = async (req: Request, res: Response) => {
+export const getFinanceOverview = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const userId = req.user?.id; // Assuming auth middleware adds user
+        const userId = req.user?.id;
+        if (!userId) return next(new Error('User not authenticated'));
 
         const transactions = await Transaction.find({ owner: userId }).sort({ date: -1 });
 
@@ -30,18 +32,20 @@ export const getFinanceOverview = async (req: Request, res: Response) => {
             }
         });
     } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Server Error' });
+        next(error);
     }
 };
 
 // Add Transaction (Manual Entry)
-export const addTransaction = async (req: Request, res: Response) => {
+export const addTransaction = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+        const userId = req.user?.id;
+        if (!userId) return next(new Error('User not authenticated'));
+
         const { description, amount, type, category, date } = req.body;
-        const width = req.user?.id;
 
         const newTx = await Transaction.create({
-            owner: req.user?.id,
+            owner: userId,
             description,
             amount,
             type,
@@ -51,6 +55,6 @@ export const addTransaction = async (req: Request, res: Response) => {
 
         res.status(201).json({ status: 'success', data: newTx });
     } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Server Error' });
+        next(error);
     }
 };

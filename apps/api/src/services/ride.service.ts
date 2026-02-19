@@ -1,15 +1,14 @@
-import prisma from '../config/prisma';
-import { RideStatus } from '@prisma/client';
 import { RideModel } from '../models/mongoose/Ride';
+import { env } from '../config/env';
+import axios from 'axios';
 
 export class RideService {
     async getEstimate(distance: number, vehicleType: string, source: string = 'Mumbai') {
         try {
             // Try calling AI Engine
-            const axios = require('axios');
-            const aiResponse = await axios.post('http://localhost:8000/predict-price', {
+            const aiResponse = await axios.post(`${env.AI_ENGINE_URL}/predict-price`, {
                 distance_km: distance,
-                weight: 10, // Default weight for now
+                weight: 10,
                 vehicle_type: vehicleType,
                 origin_city: source.split(',')[0].trim() || 'Mumbai'
             });
@@ -23,12 +22,11 @@ export class RideService {
             };
         } catch (error) {
             console.warn('AI Engine unavailable, using fallback pricing:', (error as Error).message);
-            // Fallback: Simple logic
-            let rate = 20; // Default per km
+            let rate = 20;
             if (vehicleType === 'Truck') rate = 50;
             if (vehicleType === 'Container') rate = 80;
 
-            const price = 500 + (distance * rate); // Base 500
+            const price = 500 + (distance * rate);
             return { price, distance, rate, isAiEstimate: false };
         }
     }
@@ -70,10 +68,7 @@ export class RideService {
     async assignDriver(rideId: string, driverId: string) {
         return RideModel.findByIdAndUpdate(
             rideId,
-            {
-                driverId,
-                status: 'ASSIGNED'
-            },
+            { driverId, status: 'ASSIGNED' },
             { new: true }
         );
     }
@@ -86,13 +81,11 @@ export class RideService {
     }
 
     async acceptRide(rideId: string, driverId: string) {
-        // Check if ride is pending or assigned
         const ride = await RideModel.findById(rideId);
         if (!ride || (ride.status !== 'PENDING' && ride.status !== 'ASSIGNED')) {
             throw new Error('Ride not available');
         }
 
-        // Assign driver using Mongoose
         const updatedRide = await RideModel.findByIdAndUpdate(
             rideId,
             {
@@ -106,7 +99,7 @@ export class RideService {
         return updatedRide;
     }
 
-    async updateStatus(rideId: string, status: RideStatus) {
+    async updateStatus(rideId: string, status: string) {
         return RideModel.findByIdAndUpdate(
             rideId,
             { status },

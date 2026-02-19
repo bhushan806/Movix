@@ -1,43 +1,50 @@
-import { Request, Response } from 'express';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../middlewares/auth.middleware';
 import { DriverService } from '../services/driver.service';
 
 const driverService = new DriverService();
 
-export const getProfile = async (req: Request, res: Response) => {
+export const getProfile = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        // Assuming auth middleware adds user to req
-        const userId = (req as any).user.id;
+        const userId = req.user?.id;
+        if (!userId) return next(new Error('User not authenticated'));
+
         const profile = await driverService.getProfile(userId);
-        res.json({ success: true, data: profile });
+        res.json({ status: 'success', data: profile });
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        next(error);
     }
 };
 
-export const toggleStatus = async (req: Request, res: Response) => {
+export const toggleStatus = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const userId = (req as any).user.id;
+        const userId = req.user?.id;
+        if (!userId) return next(new Error('User not authenticated'));
+
         const profile = await driverService.toggleStatus(userId);
-        res.json({ success: true, data: profile });
+        res.json({ status: 'success', data: profile });
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        next(error);
     }
 };
-export const getAllDrivers = async (req: Request, res: Response) => {
+
+export const getAllDrivers = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const drivers = await driverService.getAllDrivers();
-        res.json({ success: true, data: drivers });
+        res.json({ status: 'success', data: drivers });
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        next(error);
     }
 };
 
-export const getMyDrivers = async (req: Request, res: Response) => {
+export const getMyDrivers = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const ownerId = (req as any).user.id;
+        const ownerId = req.user?.id;
+        if (!ownerId) return next(new Error('User not authenticated'));
+
         const drivers = await driverService.getMyDrivers(ownerId);
-        res.json({ success: true, data: drivers });
+        res.json({ status: 'success', data: drivers });
     } catch (error) {
-        res.status(500).json({ success: false, message: (error as Error).message });
+        next(error);
     }
 };

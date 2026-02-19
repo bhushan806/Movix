@@ -1,8 +1,8 @@
-import { Request, Response, NextFunction } from 'express';
-import { VehicleService } from '../services/vehicle.service';
+import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { VehicleService } from '../services/vehicle.service';
 import { z } from 'zod';
-import prisma from '../config/prisma';
+import { OwnerProfileModel } from '../models/mongoose/OwnerProfile';
 import { AppError } from '../utils/AppError';
 
 const vehicleService = new VehicleService();
@@ -21,10 +21,8 @@ export const createVehicle = async (req: AuthRequest, res: Response, next: NextF
 
         const data = createVehicleSchema.parse(req.body);
 
-        // Find Owner Profile
-        const ownerProfile = await prisma.ownerProfile.findUnique({
-            where: { userId: req.user.id }
-        });
+        // Find Owner Profile using Mongoose
+        const ownerProfile = await OwnerProfileModel.findOne({ userId: req.user.id });
 
         if (!ownerProfile) {
             throw new AppError('Owner profile not found. Please complete your profile.', 404);
@@ -32,7 +30,7 @@ export const createVehicle = async (req: AuthRequest, res: Response, next: NextF
 
         const result = await vehicleService.createVehicle({
             ...data,
-            ownerId: ownerProfile.id
+            ownerId: ownerProfile._id.toString()
         });
 
         res.status(201).json({ status: 'success', data: result });
@@ -41,7 +39,7 @@ export const createVehicle = async (req: AuthRequest, res: Response, next: NextF
     }
 };
 
-export const getVehicles = async (req: Request, res: Response, next: NextFunction) => {
+export const getVehicles = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const result = await vehicleService.getVehicles(req.query as any);
         res.status(200).json({ status: 'success', data: result });
@@ -50,7 +48,7 @@ export const getVehicles = async (req: Request, res: Response, next: NextFunctio
     }
 };
 
-export const updateVehicle = async (req: Request, res: Response, next: NextFunction) => {
+export const updateVehicle = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const result = await vehicleService.updateVehicle(id, req.body);

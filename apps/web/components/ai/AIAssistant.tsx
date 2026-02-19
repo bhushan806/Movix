@@ -41,15 +41,13 @@ export default function AIAssistant() {
         setInput('');
 
         try {
-            const res = await api.post('/assistant/chat', { message: input });
-            const { message, action, data } = res.data.data;
+            const res = await api.post('/assistant/ask-ai', { message: input, role: 'Driver' });
+            const { reply } = res.data;
 
-            setMessages(prev => [...prev, { role: 'assistant', content: message, action, data }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
 
-            // Handle Actions
-            if (action === 'NAVIGATE_ROADSIDE') {
-                router.push('/dashboard/driver/roadside');
-            }
+            // Handle Actions (Optional/Legacy check)
+            // if (action === 'NAVIGATE_ROADSIDE') { ... }
         } catch (error) {
             setMessages(prev => [...prev, { role: 'assistant', content: "Sorry, I'm having trouble connecting to the server." }]);
         }

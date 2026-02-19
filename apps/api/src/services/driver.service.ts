@@ -1,16 +1,12 @@
-import { PrismaClient } from '@prisma/client';
 import { DriverProfileModel } from '../models/mongoose/DriverProfile';
 import { ConnectionRequestModel } from '../models/mongoose/ConnectionRequest';
 import { VehicleModel } from '../models/mongoose/Vehicle';
-
-const prisma = new PrismaClient();
+import { UserModel } from '../models/mongoose/User';
 
 export class DriverService {
-    // ... existing methods ...
-
     async getMyDrivers(ownerId: string) {
         try {
-            // 1. Find accepted connections
+            // Find accepted connections
             const connections = await ConnectionRequestModel.find({
                 ownerId,
                 status: 'ACCEPTED'
@@ -18,22 +14,22 @@ export class DriverService {
 
             const driverIds = connections.map(c => c.driverId);
 
-            // 2. Fetch driver profiles with user details
-            // We use Mongoose to get the 'documents' field
+            // Fetch driver profiles with user details
             const drivers = await DriverProfileModel.find({
                 _id: { $in: driverIds }
             }).populate('userId', 'name email phone avatar');
 
-            // 3. Fetch assigned vehicles
+            // Fetch assigned vehicles
             const vehicles = await VehicleModel.find({
                 driverId: { $in: driverIds }
             });
 
-            // 4. Merge and format
+            // Merge and format
             return drivers.map(driver => {
                 const vehicle = vehicles.find(v => v.driverId?.toString() === driver._id.toString());
                 return {
                     ...driver.toObject(),
+                    id: driver._id.toString(),
                     user: driver.userId, // populated user details
                     vehicle: vehicle || null
                 };
@@ -45,56 +41,33 @@ export class DriverService {
     }
 
     async getProfile(userId: string) {
-        // ... existing getProfile code ...
         try {
-            let profile = await prisma.driverProfile.findUnique({
-                where: { userId },
-                include: {
-                    user: {
-                        select: {
-                            name: true,
-                            email: true,
-                            phone: true,
-                            avatar: true,
-                        },
-                    },
-                    vehicles: true,
-                },
-            });
+            let profile = await DriverProfileModel.findOne({ userId })
+                .populate('userId', 'name email phone avatar');
 
             if (!profile) {
-                // Auto-create profile for existing users using Mongoose
-                const newProfile = await DriverProfileModel.create({
+                // Auto-create profile for existing users
+                profile = await DriverProfileModel.create({
                     userId,
                     licenseNumber: `PENDING-${Date.now()}`,
                     experienceYears: 0,
                     rating: 5.0,
                     totalTrips: 0
                 });
-
-                // Fetch it back with Prisma to get the relations and consistent format
-                profile = await prisma.driverProfile.findUnique({
-                    where: { id: newProfile._id.toString() },
-                    include: {
-                        user: {
-                            select: {
-                                name: true,
-                                email: true,
-                                phone: true,
-                                avatar: true,
-                            },
-                        },
-                        vehicles: true,
-                    },
-                });
+                profile = await DriverProfileModel.findById(profile._id)
+                    .populate('userId', 'name email phone avatar');
             }
 
             if (!profile) throw new Error('Failed to create/fetch profile');
 
-            // Map vehicles array to single vehicle for frontend compatibility
+            // Get vehicle
+            const vehicle = await VehicleModel.findOne({ driverId: profile._id });
+
             return {
-                ...profile,
-                vehicle: profile.vehicles[0] || null
+                ...profile.toObject(),
+                id: profile._id.toString(),
+                user: profile.userId,
+                vehicle: vehicle || null
             };
         } catch (error) {
             console.error('Error in DriverService.getProfile:', error);
@@ -103,9 +76,7 @@ export class DriverService {
     }
 
     async toggleStatus(userId: string) {
-        const profile = await prisma.driverProfile.findUnique({
-            where: { userId },
-        });
+        const profile = await DriverProfileModel.findOne({ userId });
 
         if (!profile) {
             throw new Error('Driver profile not found');
@@ -113,36 +84,29 @@ export class DriverService {
 
         const newStatus = !profile.isAvailable;
 
-        // Use Mongoose for update
         await DriverProfileModel.findOneAndUpdate(
             { userId },
             { isAvailable: newStatus }
         );
 
-        // Return updated profile
-        return { ...profile, isAvailable: newStatus };
+        return { ...profile.toObject(), id: profile._id.toString(), isAvailable: newStatus };
     }
 
     async getAllDrivers() {
-        // In a real app, we would filter by ownerId if drivers are assigned to specific owners
-        // For now, return all drivers
-        const drivers = await prisma.driverProfile.findMany({
-            include: {
-                user: {
-                    select: {
-                        name: true,
-                        email: true,
-                        phone: true,
-                        avatar: true,
-                    },
-                },
-                vehicles: true,
-            },
-        });
+        const drivers = await DriverProfileModel.find()
+            .populate('userId', 'name email phone avatar');
 
-        return drivers.map(d => ({
-            ...d,
-            vehicle: d.vehicles[0] || null
-        }));
+        const driverIds = drivers.map(d => d._id);
+        const vehicles = await VehicleModel.find({ driverId: { $in: driverIds } });
+
+        return drivers.map(d => {
+            const vehicle = vehicles.find(v => v.driverId?.toString() === d._id.toString());
+            return {
+                ...d.toObject(),
+                id: d._id.toString(),
+                user: d.userId,
+                vehicle: vehicle || null
+            };
+        });
     }
 }

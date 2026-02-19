@@ -2,7 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AppError } from '../utils/AppError';
-import prisma from '../config/prisma';
+import { UserModel } from '../models/mongoose/User';
+import { DriverProfileModel } from '../models/mongoose/DriverProfile';
+import { OwnerProfileModel } from '../models/mongoose/OwnerProfile';
 
 export interface AuthRequest extends Request {
     user?: any;
@@ -20,16 +22,32 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
         }
 
         const decoded = jwt.verify(token, env.JWT_SECRET) as { userId: string };
-        const user = await prisma.user.findUnique({
-            where: { id: decoded.userId },
-            include: { driverProfile: true, ownerProfile: true }
-        });
 
-        if (!user) {
+        // Use Mongoose to find user
+        const userDoc = await UserModel.findById(decoded.userId).lean();
+
+        if (!userDoc) {
             return next(new AppError('The user belonging to this token no longer exists', 401));
         }
 
-        req.user = user;
+        // Fetch role-specific profiles
+        let driverProfile = null;
+        let ownerProfile = null;
+
+        if (userDoc.role === 'DRIVER') {
+            driverProfile = await DriverProfileModel.findOne({ userId: userDoc._id }).lean();
+        } else if (userDoc.role === 'OWNER') {
+            ownerProfile = await OwnerProfileModel.findOne({ userId: userDoc._id }).lean();
+        }
+
+        // Map _id to id for frontend consistency
+        req.user = {
+            ...userDoc,
+            id: userDoc._id.toString(),
+            driverProfile: driverProfile ? { ...driverProfile, id: driverProfile._id.toString() } : null,
+            ownerProfile: ownerProfile ? { ...ownerProfile, id: ownerProfile._id.toString() } : null,
+        };
+
         next();
     } catch (error) {
         next(new AppError('Invalid token', 401));
@@ -38,7 +56,7 @@ export const protect = async (req: AuthRequest, res: Response, next: NextFunctio
 
 export const authorize = (...roles: string[]) => {
     return (req: AuthRequest, res: Response, next: NextFunction) => {
-        if (!roles.includes(req.user.role)) {
+        if (!req.user || !roles.includes(req.user.role)) {
             return next(new AppError('You do not have permission to perform this action', 403));
         }
         next();

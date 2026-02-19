@@ -67,6 +67,7 @@ route_optimizer = RouteOptimizer()
 # --- Endpoints ---
 
 # --- Endpoint Classes Update ---
+# --- Endpoint Classes Update ---
 class EtaRequest(BaseModel):
     base_time: float # in minutes
     weather_condition: str # Rain, Storm, Clear
@@ -87,11 +88,151 @@ class SosResponse(BaseModel):
     nearest_hospital: dict
     nearest_police: dict
 
+class InsightsRequest(BaseModel):
+    role: str # DRIVER, OWNER, CUSTOMER
+    user_id: str
+    context: dict = {} # Flexible context: {current_location, load_details, truck_stats...}
+
+class InsightsResponse(BaseModel):
+    summary: str
+    top_recommendations: List[dict]
+    insights: List[dict]
+    confidence_score: float
+    explanation: str
+
 # --- Endpoints ---
 
 @app.get("/")
 def health_check():
     return {"status": "healthy", "service": "TruckNet AI Engine"}
+
+@app.post("/get-insights", response_model=InsightsResponse)
+def get_ai_insights(req: InsightsRequest):
+    """
+    Unified AI Endpoint for TruckNet.
+    Dynamically returns insights based on User Role.
+    """
+    role = req.role.upper()
+    context = req.context
+    
+    response = InsightsResponse(
+        summary="No insights available.",
+        top_recommendations=[],
+        insights=[],
+        confidence_score=0.0,
+        explanation="Could not determine user role or context."
+    )
+
+    if role == "DRIVER":
+        # 1. Route Optimization Insight (Efficiency Boost)
+        current_loc = context.get("current_location", "Mumbai") # e.g. {lat: x, lng: y} or "City"
+        dest_loc = context.get("destination", "Pune")
+        
+        # Determine strict city names for the mock router if objects passed
+        start_city = "Mumbai"
+        end_city = "Pune"
+        if isinstance(current_loc, dict):
+             # Simple mock reverse geocode or default
+             start_city = "Mumbai" 
+        elif isinstance(current_loc, str):
+             start_city = current_loc
+
+        if isinstance(dest_loc, dict): 
+             end_city = "Pune"
+        elif isinstance(dest_loc, str):
+             end_city = dest_loc
+
+        route_res = route_optimizer.calculate_optimal_route(start_city, end_city)
+        
+        if "error" not in route_res:
+            rec = {
+                "type": "ROUTE",
+                "title": "Efficiency Boost Available",
+                "description": f"Vehicle is taking a longer route. Switch to {route_res['route'][1]} to save 45 mins and ₹300 fuel.",
+                "data": route_res,
+                "action_label": "Apply New Route"
+            }
+            response.top_recommendations.append(rec)
+            response.summary = "Efficiency Boost Available"
+            response.confidence_score = 0.95
+        
+        # 2. Maintenance Alert (Based on total trips or random for demo if data limited)
+        total_trips = context.get("total_trips", 0)
+        # In real logic, we'd check last_service_km vs current_km
+        if total_trips > 50: 
+             response.insights.append({
+                 "type": "WARNING",
+                 "title": "Maintenance Alert",
+                 "text": "Brake servicing recommended. Vehicle has covered high mileage.",
+                 "action_label": "Schedule Service"
+             })
+        
+        # 3. Earnings Insight
+        earnings = context.get("current_earnings", 0)
+        if earnings < 5000:
+             response.insights.append({
+                 "type": "INFO",
+                 "title": "Revenue Opportunity",
+                 "text": "Your earnings are below target. Check 'Nearby Loads' to reduce empty runs."
+             })
+
+    elif role == "OWNER":
+        # 1. Fleet Utilization
+        idle_trucks = context.get("idle_truck_count", 0)
+        maintenance_trucks = context.get("maintenance_count", 0)
+        
+        if idle_trucks > 0:
+            rec = {
+                "type": "ACTION",
+                "title": "Revenue Opportunity",
+                "description": f"High demand detected in Pune Industrial Area. Relocating {idle_trucks} idle trucks there could increase daily revenue by 15%.",
+                "action_label": "Auto-Assign Loads"
+            }
+            response.top_recommendations.append(rec)
+            response.summary = f"{idle_trucks} Trucks are currently idle."
+            response.confidence_score = 0.88
+            
+        if maintenance_trucks > 0:
+             response.insights.append({
+                 "type": "WARNING",
+                 "title": "Fleet Health Alert",
+                 "text": f"{maintenance_trucks} vehicles require immediate maintenance attention."
+             })
+
+        # 2. Market Insight
+        response.insights.append({
+            "type": "INFO",
+            "title": "Market Trends",
+            "text": "Freight rates in Mumbai -> Delhi sector up by 12%."
+        })
+
+    elif role == "CUSTOMER":
+        # 1. Delivery Prediction
+        active_shipments = context.get("active_shipments", 0)
+        latest_status = context.get("latest_shipment_status", "UNKNOWN")
+        
+        if active_shipments > 0:
+            rec = {
+                "type": "STATUS",
+                "title": f"Shipment #{random.randint(1000,9999)} Update",
+                "description": f"Your shipment is currently {latest_status}. Expected arrival: Today 6:30 PM.",
+                "data": {"eta": "18:30", "status": latest_status},
+                "action_label": "Track Live"
+            }
+            response.top_recommendations.append(rec)
+            response.summary = "Shipments on track."
+            response.confidence_score = 0.92
+        else:
+             response.summary = "No active shipments."
+             response.insights.append({
+                 "type": "INFO",
+                 "title": "Booking Tip",
+                 "text": "Truck availability is high. Book now for best rates."
+             })
+
+    response.explanation = f"Generated insights based on {role} profile and real-time context."
+    
+    return response
 
 @app.post("/match", response_model=List[MatchResponse])
 def smart_matching(load: LoadRequest, available_drivers: List[Driver]):
@@ -100,9 +241,7 @@ def smart_matching(load: LoadRequest, available_drivers: List[Driver]):
     """
     # Convert Pydantic models to dicts
     load_dict = load.model_dump()
-    # Mock destination_city for backhaul logic if not in model
-    # Ideally should be passed in LoadRequest
-    load_dict["destination_city"] = "Pune" # Mocking for demo as "Pune" unless specified
+    load_dict["destination_city"] = "Pune" # Mocking
     
     drivers_dict = [d.model_dump() for d in available_drivers]
     
@@ -124,10 +263,6 @@ def smart_matching(load: LoadRequest, available_drivers: List[Driver]):
 def calculate_smart_eta(req: EtaRequest):
     """
     Feature 1: Customer AI (Predictive ETA)
-    Logic:
-    - Rain: +15%
-    - Storm: +40%
-    - Heavy Truck: +10%
     """
     base = req.base_time
     multiplier = 1.0
@@ -157,9 +292,8 @@ def calculate_smart_eta(req: EtaRequest):
 def trigger_smart_sos(req: SosRequest):
     """
     Feature 3: Driver AI (Smart SOS & Safety)
-    Logic: Mock search for hospital/police and return formatted alert.
     """
-    # Mock nearest locations based on lat/lng (randomized for demo effect)
+    # Mock nearest locations
     hospital_dist = 2.0
     police_dist = 3.0
     

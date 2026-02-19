@@ -1,3 +1,7 @@
+// ── Environment Variable Configuration ──
+// SECURITY: All secrets must come from environment variables, never hardcoded.
+// Validated on startup — server refuses to start with missing/invalid config.
+
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -9,11 +13,15 @@ const envSchema = z.object({
     JWT_SECRET: z.string(),
     JWT_REFRESH_SECRET: z.string(),
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
-    GEMINI_API_KEY: z.string().optional(),
+
+    // AI provider keys (all optional — app falls back gracefully)
     GROQ_API_KEY: z.string().optional(),
     OLLAMA_HOST: z.string().optional(),
-});
+    AI_ENGINE_URL: z.string().default('http://localhost:8000'),
 
+    // SECURITY: Restrict CORS to your frontend origin
+    CORS_ORIGIN: z.string().default('http://localhost:3000'),
+});
 
 const envVars = envSchema.safeParse(process.env);
 

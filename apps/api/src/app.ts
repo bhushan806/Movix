@@ -7,6 +7,10 @@ import { Server } from 'socket.io';
 import { env } from './config/env';
 import { errorHandler } from './middlewares/errorHandler';
 import { AppError } from './utils/AppError';
+import { sanitizeResponse } from './middlewares/sanitize';
+import { requestTimeout } from './middlewares/requestTimeout';
+import { logger } from './utils/logger';
+import { LoadService } from './services/load.service';
 
 // Import Routes
 import authRoutes from './routes/auth.routes';
@@ -29,7 +33,7 @@ connectMongoose();
 
 import { initSocket } from './config/socket';
 
-// ... imports
+import path from 'path';
 
 const app = express();
 const httpServer = createServer(app);
@@ -37,23 +41,38 @@ const httpServer = createServer(app);
 // Initialize Socket.io
 initSocket(httpServer);
 
-// Middleware
+// ── Global Middleware ──
 app.use(helmet());
-app.use(cors());
-app.use(morgan('dev'));
-app.use(express.json());
+// SECURITY: CORS restricted to configured frontend origin (env CORS_ORIGIN)
+app.use(cors({
+    origin: env.CORS_ORIGIN,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    credentials: true,
+}));
+// Use 'combined' format in production for audit logs, 'dev' for readability locally
+app.use(morgan(env.NODE_ENV === 'production' ? 'combined' : 'dev'));
+app.use(express.json({ limit: '10mb' }));
+app.use(requestTimeout(30_000));  // 30s request timeout
+app.use(sanitizeResponse);        // Strip sensitive fields from responses
 
 // Serve Static Uploads
-import path from 'path';
 app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
 
-// ... imports
+// ── Health Check ──
+app.get('/api/health', (_req, res) => {
+    res.status(200).json({
+        status: 'success',
+        message: 'TruckNet API is running',
+        data: {
+            uptime: process.uptime(),
+            timestamp: new Date().toISOString(),
+            environment: env.NODE_ENV,
+        },
+    });
+});
 
-
-// ...
-
+// ── API Routes ──
 app.use('/api/auth', authRoutes);
-
 app.use('/api/vehicles', vehicleRoutes);
 app.use('/api/rides', rideRoutes);
 app.use('/api/loads', loadRoutes);
@@ -66,16 +85,27 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/documents', documentRoutes);
 
-// 404 Handler
-app.all('*', (req, res, next) => {
+// ── 404 Handler ──
+app.all('*', (req, _res, next) => {
     next(new AppError(`Can't find ${req.originalUrl} on this server!`, 404));
 });
 
-// Global Error Handler
+// ── Global Error Handler ──
 app.use(errorHandler);
 
-// Start Server
+// ── Start Server ──
 const PORT = env.PORT || 5000;
 httpServer.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT} `);
+    logger.info(`Server running on port ${PORT}`, { environment: env.NODE_ENV });
 });
+
+// ── Background: Load expiration scheduler (every 15 min) ──
+const loadService = new LoadService();
+setInterval(async () => {
+    try {
+        const count = await loadService.expireStaleLoads();
+        if (count > 0) logger.info('Stale loads expired', { count });
+    } catch (error: any) {
+        logger.error('Load expiration failed', { error: error.message });
+    }
+}, 15 * 60 * 1000);

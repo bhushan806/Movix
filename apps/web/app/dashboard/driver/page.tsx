@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Switch } from '@/components/ui/switch';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Star, MapPin, Navigation, Clock, Shield, DollarSign, Award, Truck } from 'lucide-react';
+import { Star, MapPin, Navigation, Clock, Shield, DollarSign, Award, Truck, Package } from 'lucide-react';
 import MapComponent from '@/components/map/Map';
 import api from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -18,53 +18,29 @@ export default function DriverDashboard() {
     const { user } = useAuth();
     const [isOnline, setIsOnline] = useState(true);
     const [profile, setProfile] = useState<any>(null);
-    const [rides, setRides] = useState<any[]>([]);
-    const [assignedTasks, setAssignedTasks] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
+    const [assignedLoads, setAssignedLoads] = useState<any[]>([]);
+    const [updatingLoadId, setUpdatingLoadId] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetchProfile = async () => {
-            try {
-                const res = await api.get('/driver/profile');
-                setProfile(res.data.data);
-            } catch (error) {
-                console.error('Failed to fetch profile', error);
-            }
-        };
-
-        const fetchRides = async () => {
-            try {
-                const [availableRes, tasksRes] = await Promise.all([
-                    api.get('/rides/available'),
-                    api.get('/rides/tasks')
-                ]);
-                setRides(availableRes.data.data);
-                setAssignedTasks(tasksRes.data.data);
-            } catch (error) {
-                console.error('Failed to fetch rides', error);
-            }
-        };
-
         fetchProfile();
-        fetchRides();
+        fetchLoads();
     }, []);
 
-    const handleAcceptRide = async (rideId: string) => {
-        setLoading(true);
+    const fetchProfile = async () => {
         try {
-            await api.post(`/rides/${rideId}/accept`);
-            alert('Ride accepted successfully!');
-            // Refresh rides
-            const [availableRes, tasksRes] = await Promise.all([
-                api.get('/rides/available'),
-                api.get('/rides/tasks')
-            ]);
-            setRides(availableRes.data.data);
-            setAssignedTasks(tasksRes.data.data);
-        } catch (error: any) {
-            alert(error.response?.data?.message || 'Failed to accept ride');
-        } finally {
-            setLoading(false);
+            const res = await api.get('/driver/profile');
+            setProfile(res.data.data);
+        } catch (error) {
+            console.error('Failed to fetch profile', error);
+        }
+    };
+
+    const fetchLoads = async () => {
+        try {
+            const res = await api.get('/loads/driver-loads');
+            setAssignedLoads(res.data.data);
+        } catch (error) {
+            console.error('Failed to fetch loads', error);
         }
     };
 
@@ -77,16 +53,31 @@ export default function DriverDashboard() {
         }
     };
 
+    const handleUpdateLoadStatus = async (loadId: string, newStatus: string) => {
+        if (updatingLoadId) return; // prevent duplicate
+        const confirmMsg = newStatus === 'IN_TRANSIT'
+            ? 'Start transit for this load?'
+            : 'Mark this load as completed?';
+        if (!confirm(confirmMsg)) return;
+
+        setUpdatingLoadId(loadId);
+        try {
+            await api.patch(`/loads/${loadId}/status`, { status: newStatus });
+            alert(`Load status updated to ${newStatus.replace(/_/g, ' ')}!`);
+            fetchLoads();
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Failed to update status');
+        } finally {
+            setUpdatingLoadId(null);
+        }
+    };
+
     const handleSOS = async () => {
         if (!confirm("Are you sure you want to trigger Smart SOS?")) return;
-
         try {
-            // Mock Location (or use navigator.geolocation in real app)
             const currentLat = 18.5204;
             const currentLng = 73.8567;
-
             const res = await api.post('/ai/sos', { lat: currentLat, lng: currentLng });
-
             if (res.data.status === 'success') {
                 alert(`SMART SOS TRIGGERED!\n\n${res.data.data.alert}`);
             }
@@ -95,6 +86,18 @@ export default function DriverDashboard() {
             alert('SOS Failed! Call Police manually.');
         }
     };
+
+    const getStatusColor = (status: string) => {
+        const map: Record<string, string> = {
+            'ASSIGNED_TO_DRIVER': 'bg-purple-100 text-purple-800',
+            'IN_TRANSIT': 'bg-orange-100 text-orange-800',
+            'COMPLETED': 'bg-green-100 text-green-800',
+        };
+        return map[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const activeLoads = assignedLoads.filter(l => l.status !== 'COMPLETED');
+    const completedLoads = assignedLoads.filter(l => l.status === 'COMPLETED');
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -158,16 +161,16 @@ export default function DriverDashboard() {
                     <div className="grid grid-cols-3 gap-4">
                         <Card>
                             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
-                                <DollarSign className="h-6 w-6 text-green-500 mb-2" />
-                                <p className="text-2xl font-bold">₹12.5k</p>
-                                <p className="text-xs text-muted-foreground">Earnings Today</p>
+                                <Package className="h-6 w-6 text-purple-500 mb-2" />
+                                <p className="text-2xl font-bold">{activeLoads.length}</p>
+                                <p className="text-xs text-muted-foreground">Active Loads</p>
                             </CardContent>
                         </Card>
                         <Card>
                             <CardContent className="p-4 flex flex-col items-center justify-center text-center">
                                 <Clock className="h-6 w-6 text-blue-500 mb-2" />
-                                <p className="text-2xl font-bold">8.5h</p>
-                                <p className="text-xs text-muted-foreground">Online Hours</p>
+                                <p className="text-2xl font-bold">{completedLoads.length}</p>
+                                <p className="text-xs text-muted-foreground">Completed</p>
                             </CardContent>
                         </Card>
                         <Card>
@@ -196,93 +199,66 @@ export default function DriverDashboard() {
                     </Card>
                 </div>
 
-                {/* Right Column: Tasks & Loads */}
+                {/* Right Column: Assigned Loads */}
                 <div className="space-y-6">
                     {/* Connection Requests */}
                     <ConnectionRequests />
 
-                    {/* Assigned Tasks */}
-                    {assignedTasks.length > 0 && (
-                        <div className="space-y-4">
-                            <h2 className="font-semibold text-lg text-blue-500">Assigned Tasks</h2>
+                    {/* Assigned Loads */}
+                    <div className="space-y-4">
+                        <h2 className="font-semibold text-lg">My Assigned Loads</h2>
+                        {activeLoads.length === 0 ? (
+                            <Card>
+                                <CardContent className="p-6 text-center text-muted-foreground">
+                                    <Package className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                                    No active load assignments.
+                                </CardContent>
+                            </Card>
+                        ) : (
                             <div className="space-y-3">
-                                {assignedTasks.map((task) => (
-                                    <Card key={task.id || task._id} className="border-l-4 border-l-blue-500 shadow-md bg-blue-50/50">
+                                {activeLoads.map((load) => (
+                                    <Card key={load._id || load.id} className="border-l-4 border-l-purple-500 shadow-md">
                                         <CardContent className="p-4">
                                             <div className="flex justify-between items-start mb-3">
-                                                <Badge className="bg-blue-500 hover:bg-blue-600">Assigned</Badge>
-                                                <span className="font-bold text-blue-700">₹{task.price}</span>
+                                                <Badge className={getStatusColor(load.status)}>
+                                                    {load.status.replace(/_/g, ' ')}
+                                                </Badge>
+                                                <span className="font-bold text-green-600">₹{load.price}</span>
                                             </div>
                                             <div className="space-y-2 mb-4">
-                                                <p className="text-sm font-medium">{task.source} → {task.destination}</p>
-                                                <p className="text-xs text-muted-foreground">{task.distance} km</p>
+                                                <p className="text-sm font-medium">{load.source} → {load.destination}</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    {load.goodsType} • {load.weight}t
+                                                    {load.distance > 0 && ` • ${load.distance} km`}
+                                                </p>
                                             </div>
-                                            <Button
-                                                className="w-full bg-blue-600 hover:bg-blue-700"
-                                                onClick={() => handleAcceptRide(task.id || task._id)}
-                                                disabled={loading}
-                                            >
-                                                Accept Assignment
-                                            </Button>
+
+                                            {/* Status action buttons */}
+                                            {load.status === 'ASSIGNED_TO_DRIVER' && (
+                                                <Button
+                                                    className="w-full bg-orange-600 hover:bg-orange-700"
+                                                    onClick={() => handleUpdateLoadStatus(load._id || load.id, 'IN_TRANSIT')}
+                                                    disabled={!!updatingLoadId}
+                                                >
+                                                    <Truck className="h-4 w-4 mr-2" />
+                                                    {updatingLoadId === (load._id || load.id) ? 'Starting...' : 'Start Transit'}
+                                                </Button>
+                                            )}
+
+                                            {load.status === 'IN_TRANSIT' && (
+                                                <Button
+                                                    className="w-full bg-green-600 hover:bg-green-700"
+                                                    onClick={() => handleUpdateLoadStatus(load._id || load.id, 'COMPLETED')}
+                                                    disabled={!!updatingLoadId}
+                                                >
+                                                    {updatingLoadId === (load._id || load.id) ? 'Completing...' : 'Mark Completed'}
+                                                </Button>
+                                            )}
                                         </CardContent>
                                     </Card>
                                 ))}
                             </div>
-                        </div>
-                    )}
-
-                    {/* Available Loads */}
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <h2 className="font-semibold text-lg">Available Loads</h2>
-                            <Link href="/dashboard/driver/loads">
-                                <Button variant="ghost" size="sm" className="text-primary">View All</Button>
-                            </Link>
-                        </div>
-
-                        <div className="space-y-3">
-                            {rides.map((ride) => (
-                                <Card key={ride.id || ride._id} className="hover:shadow-md transition-all cursor-pointer group border-l-4 border-l-transparent hover:border-l-primary">
-                                    <CardContent className="p-4">
-                                        <div className="flex justify-between items-start mb-3">
-                                            <Badge variant="secondary" className="font-normal">
-                                                {ride.type}
-                                            </Badge>
-                                            <span className="font-bold text-green-600">₹{ride.price}</span>
-                                        </div>
-
-                                        <div className="space-y-3 relative">
-                                            {/* Timeline Line */}
-                                            <div className="absolute left-[7px] top-2 bottom-2 w-0.5 bg-border"></div>
-
-                                            <div className="flex gap-3 relative z-10">
-                                                <div className="h-4 w-4 rounded-full border-2 border-primary bg-background mt-0.5"></div>
-                                                <div>
-                                                    <p className="text-sm font-medium leading-none">{ride.source}</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">Pickup: Today, 2 PM</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex gap-3 relative z-10">
-                                                <div className="h-4 w-4 rounded-full border-2 border-slate-400 bg-background mt-0.5"></div>
-                                                <div>
-                                                    <p className="text-sm font-medium leading-none">{ride.destination}</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">{ride.distance} km</p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <Button
-                                            className="w-full mt-4 opacity-0 group-hover:opacity-100 transition-opacity h-8"
-                                            onClick={() => handleAcceptRide(ride.id || ride._id)}
-                                            disabled={loading}
-                                        >
-                                            {loading ? 'Accepting...' : 'Accept Ride'}
-                                        </Button>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </div>
+                        )}
                     </div>
                 </div>
             </div>

@@ -1,32 +1,37 @@
-import { Request, Response } from 'express';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../middlewares/auth.middleware';
 import DocumentModel from '../models/Document';
 
-export const getDocuments = async (req: Request, res: Response) => {
+export const getDocuments = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        const docs = await DocumentModel.find({ owner: req.user?.id }).sort({ createdAt: -1 });
+        const userId = req.user?.id;
+        if (!userId) return next(new Error('User not authenticated'));
+
+        const docs = await DocumentModel.find({ owner: userId }).sort({ createdAt: -1 });
         res.json({ status: 'success', data: docs });
     } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Server Error' });
+        next(error);
     }
 };
 
-export const uploadDocument = async (req: Request, res: Response) => {
+export const uploadDocument = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
+        const userId = req.user?.id;
+        if (!userId) return next(new Error('User not authenticated'));
+
         const { title, type, expiryDate, entityId } = req.body;
 
         let fileUrl = '';
         if (req.file) {
-            // Convert file path to URL accessible by frontend
-            // Assuming static serve at /uploads
             fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
         }
 
         const newDoc = await DocumentModel.create({
-            owner: req.user?.id,
+            owner: userId,
             title,
             type,
             entityId,
-            url: fileUrl || 'https://via.placeholder.com/150', // Fallback if no file
+            url: fileUrl || 'https://via.placeholder.com/150',
             expiryDate,
             status: 'valid'
         });
@@ -34,6 +39,6 @@ export const uploadDocument = async (req: Request, res: Response) => {
         res.status(201).json({ status: 'success', data: newDoc });
     } catch (error) {
         console.error('Upload Error:', error);
-        res.status(500).json({ status: 'error', message: 'Server Error' });
+        next(error);
     }
 };

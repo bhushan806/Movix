@@ -1,6 +1,9 @@
-import prisma from '../config/prisma';
-import axios from 'axios';
 import { env } from '../config/env';
+import { logger } from '../utils/logger';
+import { DriverProfileModel } from '../models/mongoose/DriverProfile';
+import { VehicleModel } from '../models/mongoose/Vehicle';
+import { LoadModel } from '../models/mongoose/Load';
+import axios from 'axios';
 import { MatchService } from './match.service';
 import { RoadsideService } from './roadside.service';
 import { callGrokAPI } from './aiService';
@@ -18,13 +21,11 @@ export class AssistantService {
         try {
             switch (intent) {
                 case 'FIND_LOADS':
-                    // Call AI Engine for Smart Matching
                     try {
-                        // Mock data for demo - in real app, fetch from DB
                         const mockLoad = {
                             load_id: "L123",
-                            origin: { lat: 18.5204, lng: 73.8567 }, // Pune
-                            destination: { lat: 19.0760, lng: 72.8777 }, // Mumbai
+                            origin: { lat: 18.5204, lng: 73.8567 },
+                            destination: { lat: 19.0760, lng: 72.8777 },
                             weight: 10.5,
                             goods_type: "Electronics"
                         };
@@ -32,10 +33,9 @@ export class AssistantService {
                         const mockDrivers = [
                             { driver_id: "D1", location: { lat: 18.5200, lng: 73.8500 }, rating: 4.8, vehicle_type: "Truck", is_available: true },
                             { driver_id: "D2", location: { lat: 18.6000, lng: 73.8000 }, rating: 4.5, vehicle_type: "Truck", is_available: true },
-                            { driver_id: "D3", location: { lat: 19.0000, lng: 73.0000 }, rating: 4.2, vehicle_type: "Van", is_available: true }
                         ];
 
-                        const aiResponse = await axios.post('http://localhost:8000/match', {
+                        const aiResponse = await axios.post(`${env.AI_ENGINE_URL}/match`, {
                             load: mockLoad,
                             available_drivers: mockDrivers
                         });
@@ -45,12 +45,9 @@ export class AssistantService {
                         data = matches;
                         action = 'SHOW_LOADS';
                     } catch (e) {
-                        console.error("AI Engine Error:", e);
-                        // Fallback to local DB if AI fails
-                        const loads = await prisma.load.findMany({
-                            where: { status: 'OPEN' },
-                            take: 5
-                        });
+                        logger.error('AI Engine unavailable for smart matching', { error: (e as any).message });
+                        // Fallback to local DB
+                        const loads = await LoadModel.find({ status: 'OPEN' }).limit(5).lean();
                         response = `AI Engine is offline, but I found ${loads.length} available loads from the database.`;
                         data = loads;
                         action = 'SHOW_LOADS';
@@ -59,17 +56,15 @@ export class AssistantService {
 
                 case 'PRICE_CHECK':
                     try {
-                        // Extract city from message or default
                         const originCity = message.includes('Mumbai') ? 'Mumbai' : 'Pune';
-
                         const priceReq = {
-                            distance_km: 150, // Mock distance
+                            distance_km: 150,
                             weight: 10,
                             vehicle_type: "Truck",
                             origin_city: originCity
                         };
 
-                        const priceRes = await axios.post('http://localhost:8000/predict-price', priceReq);
+                        const priceRes = await axios.post(`${env.AI_ENGINE_URL}/predict-price`, priceReq);
                         const priceData = priceRes.data;
 
                         response = `Estimated price: ₹${priceData.total_price} (Base: ₹${priceData.base_fare}, Surge: ${priceData.surge_multiplier}x)`;
@@ -80,16 +75,19 @@ export class AssistantService {
                     break;
 
                 case 'TRACK_VEHICLE':
-                    // Mock: Get user's vehicles
-                    const vehicles = await prisma.vehicle.findMany({
-                        where: { owner: { userId } }
-                    });
-                    if (vehicles.length > 0) {
-                        response = `Your vehicle ${vehicles[0].number} is currently at ${vehicles[0].currentLat}, ${vehicles[0].currentLng}.`;
-                        data = vehicles;
-                        action = 'SHOW_MAP';
+                    // Use Mongoose to find vehicles
+                    const driverProfile = await DriverProfileModel.findOne({ userId });
+                    if (driverProfile) {
+                        const vehicles = await VehicleModel.find({ driverId: driverProfile._id }).lean();
+                        if (vehicles.length > 0) {
+                            response = `Your vehicle ${vehicles[0].number} is currently tracked.`;
+                            data = vehicles;
+                            action = 'SHOW_MAP';
+                        } else {
+                            response = "You don't have any vehicles assigned.";
+                        }
                     } else {
-                        response = "You don't have any vehicles registered.";
+                        response = "No driver profile found.";
                     }
                     break;
 
@@ -99,7 +97,6 @@ export class AssistantService {
                     break;
 
                 case 'OPTIMIZE_ROUTE':
-                    // Mock: Route optimization
                     response = "I've analyzed the traffic and road conditions. Here is the optimized route for your current delivery.";
                     data = {
                         route: [
@@ -118,7 +115,7 @@ export class AssistantService {
                     break;
             }
         } catch (error) {
-            console.error('AI Processing Error:', error);
+            logger.error('AI processing error', { error: (error as any).message });
             response = "I encountered an error while processing your request.";
         }
 
@@ -142,9 +139,7 @@ export class AssistantService {
         return 'UNKNOWN';
     }
 
-
     async askAI(message: string, role: string) {
-
         try {
             const prompt = `
             You remain "TruckNet India – Logistics AI Assistant".
@@ -168,12 +163,11 @@ export class AssistantService {
             ];
 
             const text = await callGrokAPI(messages);
-
             return { reply: text };
         } catch (error: any) {
-            console.error("Grok API Error in AssistantService:", error.message);
-            return { reply: `I'm currently having trouble connecting to the AI brain. Error: ${error.message}` };
+            // SECURITY: Log error internally, never expose raw error message to user
+            logger.error('AI provider error in askAI', { error: error.message });
+            return { reply: "I'm currently having trouble connecting to the AI brain. Please try again later." };
         }
     }
 }
-

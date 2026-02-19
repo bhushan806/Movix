@@ -1,19 +1,11 @@
+// ── AI Provider Service ──
+// SECURITY: No API keys are hardcoded. All keys come from environment variables.
+// Provider priority: Groq (Cloud) → Ollama (Local) → HuggingFace (Free Fallback)
+// Gemini has been removed from the provider chain.
+
 import axios from 'axios';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from 'dotenv';
 dotenv.config();
-
-
-let genAI: GoogleGenerativeAI | null = null;
-let model: any = null;
-
-const initializeGemini = () => {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (apiKey) {
-        genAI = new GoogleGenerativeAI(apiKey);
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    }
-};
 
 interface ChatMessage {
     role: 'system' | 'user' | 'assistant';
@@ -21,28 +13,30 @@ interface ChatMessage {
 }
 
 export const callGrokAPI = async (messages: ChatMessage[]) => {
-    // Priority 1: Groq (Fastest Free Cloud)
-    // Get key from https://console.groq.com/keys
+    // Priority 1: Groq (Fastest Cloud Provider)
     if (process.env.GROQ_API_KEY) {
         try {
             const response = await axios.post('https://api.groq.com/openai/v1/chat/completions', {
-                model: "llama-3.3-70b-versatile", // Valid Free Model
+                model: "llama-3.3-70b-versatile",
                 messages: messages
             }, {
                 headers: {
                     'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                timeout: 10000,
             });
             return response.data.choices[0].message.content;
         } catch (error: any) {
-            console.error("Groq API Error:", error.response?.data || error.message);
+            // SECURITY: Never log the API key; only log sanitized error info
+            const status = error.response?.status;
+            const msg = error.response?.data?.error?.message || error.message;
+            console.error(`Groq API Error [${status}]:`, msg);
             // Fallthrough to next provider
         }
     }
 
     // Priority 2: Ollama (Local Free)
-    // Install from https://ollama.com/ and run "ollama run llama3"
     const ollamaHost = process.env.OLLAMA_HOST;
     if (ollamaHost) {
         try {
@@ -50,10 +44,10 @@ export const callGrokAPI = async (messages: ChatMessage[]) => {
                 model: "llama3",
                 messages: messages,
                 stream: false
-            });
+            }, { timeout: 15000 });
             return response.data.message.content;
-        } catch (error: any) {
-            // console.warn("Ollama config present but unavailable:", error.message);
+        } catch {
+            // Ollama not available, fallthrough
         }
     }
 
@@ -61,40 +55,24 @@ export const callGrokAPI = async (messages: ChatMessage[]) => {
     try {
         const userMessage = messages.find(m => m.role === 'user')?.content || "";
         const systemMessage = messages.find(m => m.role === 'system')?.content || "";
-        const prompt = `${systemMessage}\n\nUser: ${userMessage}\nAssistant:`; // HF models often need raw prompting
+        const prompt = `${systemMessage}\n\nUser: ${userMessage}\nAssistant:`;
 
         const response = await axios.post(
             'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
             { inputs: prompt },
-            { headers: { 'Content-Type': 'application/json' } }
+            {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 15000,
+            }
         );
-        // HF returns [{ generated_text: "..." }]
+
         if (Array.isArray(response.data) && response.data.length > 0) {
             let text = response.data[0].generated_text;
-            // Clean up prompt from response if echoed
             if (text.startsWith(prompt)) text = text.substring(prompt.length);
             return text.trim();
         }
-    } catch (error: any) {
-        // console.error("HuggingFace Fallback Failed:", error.message);
-    }
-
-
-    // Priority 3: Gemini (Backup if Key exists)
-    if (process.env.GEMINI_API_KEY) {
-        if (!genAI) initializeGemini();
-        if (model) {
-            try {
-                const userMessage = messages.find(m => m.role === 'user')?.content || "";
-                const systemMessage = messages.find(m => m.role === 'system')?.content || "";
-
-                const result = await model.generateContent(`${systemMessage}\n\nUser: ${userMessage}`);
-                const response = await result.response;
-                return response.text();
-            } catch (err: any) {
-                console.error("Gemini Error:", err.message);
-            }
-        }
+    } catch {
+        // HuggingFace fallback failed
     }
 
     throw new Error("No AI provider available. Please set GROQ_API_KEY (Cloud) or run Ollama (Local).");

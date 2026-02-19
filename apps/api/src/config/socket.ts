@@ -1,22 +1,25 @@
 import { Server } from 'socket.io';
 import { Server as HttpServer } from 'http';
+import { env } from './env';
+import { logger } from '../utils/logger';
 
 let io: Server;
 
 export const initSocket = (httpServer: HttpServer) => {
     io = new Server(httpServer, {
         cors: {
-            origin: '*',
+            // SECURITY: Restrict WebSocket CORS to configured frontend origin
+            origin: env.CORS_ORIGIN,
             methods: ['GET', 'POST']
         }
     });
 
     io.on('connection', (socket) => {
-        console.log('A user connected:', socket.id);
+        logger.debug('Socket connected', { socketId: socket.id });
 
         socket.on('join', (userId) => {
             socket.join(userId);
-            console.log(`User ${userId} joined their room`);
+            logger.debug('User joined room', { userId });
         });
 
         socket.on('updateLocation', (data) => {
@@ -24,7 +27,7 @@ export const initSocket = (httpServer: HttpServer) => {
         });
 
         socket.on('disconnect', () => {
-            console.log('User disconnected:', socket.id);
+            logger.debug('Socket disconnected', { socketId: socket.id });
         });
     });
 

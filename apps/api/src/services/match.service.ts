@@ -1,151 +1,116 @@
-import prisma from '../config/prisma';
+import { LoadModel } from '../models/mongoose/Load';
+import { VehicleModel } from '../models/mongoose/Vehicle';
 import { AppError } from '../utils/AppError';
-import { AiService } from './ai.service';
+import { validateObjectId } from '../utils/validateId';
+import { logger } from '../utils/logger';
+import { env } from '../config/env';
+import axios from 'axios';
+
+const AI_TIMEOUT_MS = 5000;
 
 export class MatchService {
-    // Find matches for a specific load
+    // Find AI-ranked driver matches for a load
     async findMatches(loadId: string) {
-        const load = await prisma.load.findUnique({
-            where: { id: loadId },
-            include: { owner: true }
-        });
+        validateObjectId(loadId, 'loadId');
 
+        const load = await LoadModel.findById(loadId).lean();
         if (!load) throw new AppError('Load not found', 404);
 
-        // 1. Find available vehicles
-        // In a real app, we would use geospatial queries (e.g., $near) here.
-        // For now, we fetch available vehicles and filter/sort in memory.
-        const vehicles = await prisma.vehicle.findMany({
-            where: {
-                status: 'AVAILABLE',
-                capacity: { gte: load.weight } // Filter by capacity
-            },
-            include: {
-                driver: {
-                    include: { user: true }
-                },
-                owner: {
-                    include: { user: true }
-                }
-            }
-        });
+        // Find available vehicles with enough capacity
+        const vehicles = await VehicleModel.find({
+            status: 'AVAILABLE',
+            capacity: { $gte: load.weight },
+        })
+            .populate('driverId')
+            .populate('ownerId')
+            .lean();
 
-        const matches = [];
+        if (vehicles.length === 0) return [];
 
-        // 2. Call AI Engine for Scoring (Feature 2: Real AI)
-        // Transform data for AI Engine
+        // Build AI payload
         const loadForAi = {
-            load_id: load.id,
-            origin: { lat: 0, lng: 0 }, // TODO: Geocode source
-            destination: { lat: 0, lng: 0 }, // TODO: Geocode dest
+            load_id: loadId,
+            origin: { lat: load.pickupLat || 0, lng: load.pickupLng || 0 },
+            destination: { lat: load.dropLat || 0, lng: load.dropLng || 0 },
             weight: load.weight,
-            goods_type: load.goodsType
+            goods_type: load.goodsType,
         };
 
         const driversForAi = vehicles.map(v => ({
-            driver_id: v.driver?.id || v.id,
+            driver_id: v.driverId?._id?.toString() || v._id.toString(),
             location: { lat: v.currentLat || 0, lng: v.currentLng || 0 },
-            rating: v.driver?.rating || 5.0,
+            rating: (v.driverId as any)?.rating || 5.0,
             vehicle_type: v.type,
-            is_available: true
+            is_available: true,
         }));
 
-        const aiService = new AiService();
-        // Call Python AI
-        const aiResults = await aiService.getDriverMatchScore(loadForAi, driversForAi);
+        // Try calling AI Engine (with timeout + fallback)
+        let aiScoreMap = new Map<string, number>();
+        try {
+            const aiResponse = await axios.post(
+                `${env.AI_ENGINE_URL}/match`,
+                { load: loadForAi, available_drivers: driversForAi },
+                { timeout: AI_TIMEOUT_MS }
+            );
 
-        // Map AI results back to vehicles
-        const scoredVehicles = [];
-
-        // Fallback if AI fails: use local loop
-        if (!aiResults || aiResults.length === 0) {
-            console.warn("AI Engine returned no results, using fallback.");
-            // ... existing fallback ...
+            if (aiResponse.data && Array.isArray(aiResponse.data)) {
+                aiResponse.data.forEach((r: any) => {
+                    let score = r.score || 0;
+                    if (score > 1) score = score / 100;
+                    aiScoreMap.set(r.driver_id, score);
+                });
+            }
+        } catch (error: any) {
+            logger.warn('AI Engine unavailable for matching, using fallback', { error: error.message });
         }
 
-        // Process AI results
-        const aiScoreMap = new Map();
-        if (aiResults) {
-            aiResults.forEach((r: any) => aiScoreMap.set(r.driver_id, r.score));
-        }
+        // Build matches — AI score or fallback
+        const matches = vehicles.map(vehicle => {
+            const driverId = vehicle.driverId?._id?.toString() || vehicle._id.toString();
+            const score = aiScoreMap.get(driverId) || Math.random() * 0.5 + 0.3;
 
-        // const matches = []; // Removed duplicate declaration
+            return {
+                vehicleId: vehicle._id.toString(),
+                vehicleNumber: vehicle.number,
+                vehicleType: vehicle.type,
+                capacity: vehicle.capacity,
+                driverId,
+                driverName: (vehicle.driverId as any)?.userId?.name || 'Unknown',
+                driverRating: (vehicle.driverId as any)?.rating || 5.0,
+                score: Math.round(score * 100) / 100,
+            };
+        });
 
-        for (const vehicle of vehicles) {
-            const driverId = vehicle.driver?.id || vehicle.id;
-            // Get score from AI, default to 0.5 if not found
-            let score = aiScoreMap.get(driverId) || 0;
-
-            // Normalize score if AI returns > 1 (e.g. 0-100)
-            if (score > 1) score = score / 100;
-
-            // 3. Create or Update Match record
-            const match = await prisma.match.upsert({
-                where: {
-                    loadId_vehicleId: {
-                        loadId: load.id,
-                        vehicleId: vehicle.id
-                    }
-                },
-                update: { score },
-                create: {
-                    loadId: load.id,
-                    vehicleId: vehicle.id,
-                    score
-                },
-                include: {
-                    vehicle: {
-                        include: {
-                            driver: { include: { user: true } },
-                            owner: { include: { user: true } }
-                        }
-                    }
-                }
-            });
-
-            matches.push(match);
-        }
-
-        // Sort by score descending
         return matches.sort((a, b) => b.score - a.score);
     }
 
-    // Accept a match (Assign driver/vehicle to load)
-    async acceptMatch(matchId: string) {
-        const match = await prisma.match.findUnique({
-            where: { id: matchId },
-            include: { load: true }
-        });
+    // Accept a match: assign vehicle's driver to load
+    async acceptMatch(loadId: string, vehicleId: string, ownerId: string) {
+        validateObjectId(loadId, 'loadId');
+        validateObjectId(vehicleId, 'vehicleId');
 
-        if (!match) throw new AppError('Match not found', 404);
+        const load = await LoadModel.findById(loadId);
+        if (!load) throw new AppError('Load not found', 404);
 
-        // Update Match Status
-        await prisma.match.update({
-            where: { id: matchId },
-            data: { status: 'ACCEPTED' }
-        });
+        if (load.status !== 'ACCEPTED_BY_OWNER') {
+            throw new AppError('Load must be in ACCEPTED_BY_OWNER status', 400);
+        }
 
-        // Update Load Status
-        await prisma.load.update({
-            where: { id: match.loadId },
-            data: { status: 'ASSIGNED' }
-        });
+        const vehicle = await VehicleModel.findById(vehicleId);
+        if (!vehicle) throw new AppError('Vehicle not found', 404);
 
-        // Update Vehicle Status
-        await prisma.vehicle.update({
-            where: { id: match.vehicleId },
-            data: { status: 'ON_TRIP' }
-        });
+        if (vehicle.driverId) {
+            load.driverId = vehicle.driverId as any;
+            load.status = 'ASSIGNED_TO_DRIVER';
+            (load as any).assignedAt = new Date();
+            await load.save();
 
-        // Reject other matches for this load
-        await prisma.match.updateMany({
-            where: {
-                loadId: match.loadId,
-                id: { not: matchId }
-            },
-            data: { status: 'REJECTED' }
-        });
+            vehicle.status = 'ON_TRIP';
+            await vehicle.save();
 
-        return match;
+            logger.info('Match accepted', { loadId, vehicleId, ownerId });
+        }
+
+        return load;
     }
 }

@@ -1,121 +1,61 @@
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
+import { AuthRequest } from '../middlewares/auth.middleware';
 import { AiService } from '../services/ai.service';
-import prisma from '../config/prisma';
+import { UserModel } from '../models/mongoose/User';
+import { DriverProfileModel } from '../models/mongoose/DriverProfile';
+import { OwnerProfileModel } from '../models/mongoose/OwnerProfile';
+import { VehicleModel } from '../models/mongoose/Vehicle';
+import { RideModel } from '../models/mongoose/Ride';
+import { LoadModel } from '../models/mongoose/Load';
+import bcrypt from 'bcrypt';
 
 const aiService = new AiService();
 
-export const getInsights = async (req: Request, res: Response, next: NextFunction) => {
+export const getInsights = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
         let { role, userId } = req.body;
 
         if (!role || !userId) {
-            res.status(400).json({ error: "Role and User ID are required" });
+            res.status(400).json({ status: 'error', message: 'Role and User ID are required' });
             return;
         }
 
         console.log(`[AI] Processing request for ${role} - ${userId}`);
 
-        // 1. Identify User (ID or Email) + Auto-Seed Demo
+        // Find user by email or id
         let user = null;
         if (userId.includes('@')) {
-            user = await prisma.user.findUnique({ where: { email: userId } });
-
-            // SELF-SEEDING for Demo
-            if (!user && userId.includes('trucknet.in')) {
-                console.log(`[AI] Auto-Seeding Demo User: ${userId}`);
-                try {
-                    user = await prisma.user.create({
-                        data: {
-                            email: userId,
-                            phone: `99${Math.floor(Math.random() * 90000000 + 10000000)}`,
-                            password: 'demo',
-                            name: role === 'OWNER' ? 'Demo Owner' : 'Demo Driver',
-                            role: role === 'OWNER' ? 'OWNER' : 'DRIVER'
-                        }
-                    });
-
-                    if (role === 'OWNER') {
-                        const profile = await prisma.ownerProfile.create({
-                            data: { userId: user.id, companyName: 'Demo Logistics Pvt Ltd' }
-                        });
-                        // Create Demo Fleet
-                        await prisma.vehicle.createMany({
-                            data: [
-                                { number: 'MH-12-DEMO-01', type: 'TRUCK_LARGE', status: 'AVAILABLE', ownerId: profile.id, capacity: 20 },
-                                { number: 'MH-14-DEMO-02', type: 'TRUCK_SMALL', status: 'MAINTENANCE', ownerId: profile.id, capacity: 8 },
-                                { number: 'MH-04-LIVE-03', type: 'CONTAINER', status: 'ON_TRIP', ownerId: profile.id, capacity: 15 }
-                            ]
-                        });
-                    } else if (role === 'DRIVER') {
-                        await prisma.driverProfile.create({
-                            data: {
-                                userId: user.id,
-                                licenseNumber: `DL-${Math.floor(Math.random() * 100000)}`,
-                                experienceYears: 5,
-                                rating: 4.8,
-                                totalTrips: 55, // High trips -> Maintenance alert
-                                currentLat: 19.0760,
-                                currentLng: 72.8777
-                            }
-                        });
-                    }
-                } catch (e) {
-                    console.log("[AI] Seeding Warning (Concurrent?):", e);
-                    // Retry fetch if create failed due to race condition
-                    user = await prisma.user.findUnique({ where: { email: userId } });
-                }
-            }
+            user = await UserModel.findOne({ email: userId }).lean();
         } else {
-            user = await prisma.user.findUnique({ where: { id: userId } });
+            user = await UserModel.findById(userId).lean();
         }
 
-        // Use the Resolved Real ID -> Logic: If user found, use ID. Else keep input.
-        const dbUserId = user ? user.id : userId;
-        console.log(`[AI] Resolved DB User ID: ${dbUserId}`);
+        const dbUserId = user ? user._id.toString() : userId;
 
-        // Helper to check valid Mongo ID
-        const isValidObjectId = (id: string) => /^[0-9a-fA-F]{24}$/.test(id);
-
-        // 2. Gather Context based on Role (from DB or Fallback)
+        // Gather context based on role
         let context: any = {};
 
         if (role === 'DRIVER') {
-            let driverProfile = null;
-            if (isValidObjectId(dbUserId)) {
-                try {
-                    driverProfile = await prisma.driverProfile.findUnique({
-                        where: { userId: dbUserId },
-                        include: { rides: { where: { status: 'ONGOING' } } }
-                    });
-                } catch (e) { console.error("Driver Profile Fetch Error", e); }
-            }
-
+            const driverProfile = await DriverProfileModel.findOne({ userId: dbUserId });
             if (driverProfile) {
-                // Real DB Data
+                const rides = await RideModel.find({ driverId: driverProfile._id, status: 'ONGOING' });
                 context = {
-                    driver_id: driverProfile.id,
+                    driver_id: driverProfile._id.toString(),
                     rating: driverProfile.rating,
                     total_trips: driverProfile.totalTrips,
-                    // If on a ride, send destination for routing
-                    current_location: driverProfile.currentLat ? { lat: driverProfile.currentLat, lng: driverProfile.currentLng } : "Mumbai",
-                    destination: driverProfile.rides[0]?.destination || "Pune",
+                    current_location: driverProfile.currentLat
+                        ? { lat: driverProfile.currentLat, lng: driverProfile.currentLng }
+                        : 'Mumbai',
+                    destination: rides[0]?.destination || 'Pune',
                     current_earnings: 12000
                 };
             } else {
-                // Fallback for Demo 
-                context = { current_location: "Mumbai", destination: "Pune", current_earnings: 4500 };
+                context = { current_location: 'Mumbai', destination: 'Pune', current_earnings: 4500 };
             }
-
         } else if (role === 'OWNER') {
-            let ownerProfile = null;
-            if (isValidObjectId(dbUserId)) {
-                try {
-                    ownerProfile = await prisma.ownerProfile.findUnique({ where: { userId: dbUserId } });
-                } catch (e) { console.error("Owner Profile Fetch Error", e); }
-            }
-
+            const ownerProfile = await OwnerProfileModel.findOne({ userId: dbUserId });
             if (ownerProfile) {
-                const vehicles = await prisma.vehicle.findMany({ where: { ownerId: ownerProfile.id } });
+                const vehicles = await VehicleModel.find({ ownerId: ownerProfile._id });
                 const idleCount = vehicles.filter(v => v.status === 'AVAILABLE').length;
                 const maintenanceCount = vehicles.filter(v => v.status === 'MAINTENANCE').length;
 
@@ -123,106 +63,106 @@ export const getInsights = async (req: Request, res: Response, next: NextFunctio
                     idle_truck_count: idleCount,
                     maintenance_count: maintenanceCount,
                     total_fleet_size: vehicles.length,
-                    top_performing_vehicle: vehicles[0]?.number || "NA"
+                    top_performing_vehicle: vehicles[0]?.number || 'NA'
                 };
             } else {
                 context = { idle_truck_count: 2, maintenance_count: 1 };
             }
-
         } else if (role === 'CUSTOMER') {
-            let rides: any[] = [];
-            if (isValidObjectId(dbUserId)) {
-                try {
-                    rides = await prisma.ride.findMany({
-                        where: { customerId: dbUserId, status: { in: ['ASSIGNED', 'ONGOING'] } }
-                    });
-                } catch (e) { console.error("Customer Rides Fetch Error", e); }
-            }
-
+            const loads = await LoadModel.find({
+                customerId: dbUserId,
+                status: { $in: ['ACCEPTED_BY_OWNER', 'ASSIGNED_TO_DRIVER', 'IN_TRANSIT'] }
+            });
             context = {
-                active_shipments: rides.length,
-                latest_shipment_status: rides[0]?.status || "NO_ACTIVE_SHIPMENTS"
+                active_shipments: loads.length,
+                latest_shipment_status: loads[0]?.status || 'NO_ACTIVE_SHIPMENTS'
             };
         }
 
-        // 3. Call AI Service
         const insights = await aiService.getInsights(role, dbUserId, context);
-
         res.status(200).json({ status: 'success', data: insights });
     } catch (error: any) {
-        console.error("[AI Controller Error]", error);
+        console.error('[AI Controller Error]', error);
         res.status(500).json({
             status: 'error',
             message: 'Internal Server Error',
-            details: error.message,
-            stack: error.stack
+            details: error.message
         });
     }
 };
 
-export const seedData = async (req: Request, res: Response, next: NextFunction) => {
+export const seedData = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        console.log('Seeding Real AI Data via API...');
+        console.log('Seeding Demo Data via API...');
 
-        // 1. Create a Demo Owner with Fleet
+        const hashedPassword = await bcrypt.hash('password123', 10);
+
+        // 1. Create Demo Owner
         const ownerEmail = 'demo.owner@trucknet.in';
-        let ownerUser = await prisma.user.findUnique({ where: { email: ownerEmail } });
+        let ownerUser = await UserModel.findOne({ email: ownerEmail });
         let newOwner = false;
 
         if (!ownerUser) {
             newOwner = true;
-            ownerUser = await prisma.user.create({
-                data: {
-                    email: ownerEmail,
-                    phone: '9876543210',
-                    password: 'password123',
-                    name: 'Rajesh Transports',
-                    role: 'OWNER',
-                    ownerProfile: {
-                        create: {
-                            companyName: 'Rajesh Transports Pvt Ltd'
-                        }
-                    }
-                }
+            ownerUser = await UserModel.create({
+                email: ownerEmail,
+                phone: '9876543210',
+                password: hashedPassword,
+                name: 'Rajesh Transports',
+                role: 'OWNER'
+            });
+
+            await OwnerProfileModel.create({
+                userId: ownerUser._id,
+                companyName: 'Rajesh Transports Pvt Ltd'
             });
         }
 
-        const ownerProfile = await prisma.ownerProfile.findUnique({ where: { userId: ownerUser.id } });
+        const ownerProfile = await OwnerProfileModel.findOne({ userId: ownerUser._id });
 
         if (ownerProfile && newOwner) {
-            // Create Fleet only if new owner
-            await prisma.vehicle.createMany({
-                data: [
-                    { number: 'MH-12-AB-1234', type: 'TRUCK_10T', status: 'AVAILABLE', ownerId: ownerProfile.id, capacity: 10 },
-                    { number: 'MH-14-XY-9876', type: 'TRUCK_10T', status: 'MAINTENANCE', ownerId: ownerProfile.id, capacity: 10 },
-                    { number: 'MH-04-JK-5555', type: 'TRUCK_20T', status: 'ON_TRIP', ownerId: ownerProfile.id, capacity: 20 }
-                ]
+            await VehicleModel.create([
+                { number: 'MH-12-AB-1234', type: 'TRUCK_10T', status: 'AVAILABLE', ownerId: ownerProfile._id, capacity: 10 },
+                { number: 'MH-14-XY-9876', type: 'TRUCK_10T', status: 'MAINTENANCE', ownerId: ownerProfile._id, capacity: 10 },
+                { number: 'MH-04-JK-5555', type: 'TRUCK_20T', status: 'ON_TRIP', ownerId: ownerProfile._id, capacity: 20 }
+            ]);
+        }
+
+        // 2. Create Demo Driver
+        const driverEmail = 'demo.driver@trucknet.in';
+        let driverUser = await UserModel.findOne({ email: driverEmail });
+
+        if (!driverUser) {
+            driverUser = await UserModel.create({
+                email: driverEmail,
+                phone: '9988776655',
+                password: hashedPassword,
+                name: 'Suresh Driver',
+                role: 'DRIVER'
+            });
+
+            await DriverProfileModel.create({
+                userId: driverUser._id,
+                licenseNumber: 'MH-12-20220000123',
+                experienceYears: 10,
+                rating: 4.8,
+                totalTrips: 60,
+                currentLat: 19.0760,
+                currentLng: 72.8777
             });
         }
 
-        // 2. Create a Demo Driver
-        const driverEmail = 'demo.driver@trucknet.in';
-        let driverUser = await prisma.user.findUnique({ where: { email: driverEmail } });
+        // 3. Create Demo Customer
+        const customerEmail = 'demo.customer@trucknet.in';
+        let customerUser = await UserModel.findOne({ email: customerEmail });
 
-        if (!driverUser) {
-            driverUser = await prisma.user.create({
-                data: {
-                    email: driverEmail,
-                    phone: '9988776655',
-                    password: 'password123',
-                    name: 'Suresh Driver',
-                    role: 'DRIVER',
-                    driverProfile: {
-                        create: {
-                            licenseNumber: 'MH-12-20220000123',
-                            experienceYears: 10,
-                            rating: 4.8,
-                            totalTrips: 60,
-                            currentLat: 19.0760,
-                            currentLng: 72.8777
-                        }
-                    }
-                }
+        if (!customerUser) {
+            customerUser = await UserModel.create({
+                email: customerEmail,
+                phone: '9112233445',
+                password: hashedPassword,
+                name: 'Demo Customer',
+                role: 'CUSTOMER'
             });
         }
 
@@ -230,8 +170,9 @@ export const seedData = async (req: Request, res: Response, next: NextFunction) 
             status: 'success',
             message: 'Database Seeded',
             data: {
-                ownerId: ownerUser ? ownerUser.id : "",
-                driverId: driverUser ? driverUser.id : ""
+                ownerId: ownerUser._id.toString(),
+                driverId: driverUser._id.toString(),
+                customerId: customerUser._id.toString()
             }
         });
     } catch (e) {

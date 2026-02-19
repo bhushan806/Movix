@@ -5,167 +5,238 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import MapComponent from '@/components/map/Map';
 import api from '@/lib/api';
+import { Package, MapPin, Clock, Truck } from 'lucide-react';
 
 export default function CustomerDashboard() {
-    const [source, setSource] = useState('');
-    const [destination, setDestination] = useState('');
-    const [estimate, setEstimate] = useState<any>(null);
+    const [formData, setFormData] = useState({
+        source: '',
+        destination: '',
+        weight: '',
+        goodsType: '',
+        price: '',
+        vehicleType: 'Truck',
+        description: '',
+    });
     const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState('');
+    const [error, setError] = useState('');
 
-    const handleGetEstimate = async () => {
+    const handlePostLoad = async (e: React.FormEvent) => {
+        e.preventDefault();
         setLoading(true);
+        setError('');
+        setSuccess('');
+
         try {
-            // Geocode source
-            const sourceRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(source)}`);
+            // Geocode for distance estimation
+            const sourceRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(formData.source)}`);
             const sourceData = await sourceRes.json();
-            if (!sourceData || sourceData.length === 0) throw new Error('Source not found');
-            const sourceLat = parseFloat(sourceData[0].lat);
-            const sourceLon = parseFloat(sourceData[0].lon);
-
-            // Geocode destination
-            const destRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(destination)}`);
+            const destRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(formData.destination)}`);
             const destData = await destRes.json();
-            if (!destData || destData.length === 0) throw new Error('Destination not found');
-            const destLat = parseFloat(destData[0].lat);
-            const destLon = parseFloat(destData[0].lon);
 
-            // Get route from OSRM
-            const routeRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${sourceLon},${sourceLat};${destLon},${destLat}?overview=false`);
-            const routeData = await routeRes.json();
+            let distance = 0;
+            let pickupLat = 0, pickupLng = 0, dropLat = 0, dropLng = 0;
+            if (sourceData[0] && destData[0]) {
+                pickupLat = parseFloat(sourceData[0].lat);
+                pickupLng = parseFloat(sourceData[0].lon);
+                dropLat = parseFloat(destData[0].lat);
+                dropLng = parseFloat(destData[0].lon);
 
-            if (routeData.code !== 'Ok' || !routeData.routes || routeData.routes.length === 0) {
-                throw new Error('Route not found');
+                const routeRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${pickupLng},${pickupLat};${dropLng},${dropLat}?overview=false`);
+                const routeData = await routeRes.json();
+                if (routeData.code === 'Ok' && routeData.routes?.length > 0) {
+                    distance = Math.round(routeData.routes[0].distance / 1000);
+                }
             }
 
-            const distanceMeters = routeData.routes[0].distance;
-            const distanceKm = Math.round(distanceMeters / 1000);
-
-            const res = await api.post('/rides/estimate', {
-                distance: distanceKm,
-                vehicleType: 'Truck'
+            await api.post('/loads', {
+                source: formData.source,
+                destination: formData.destination,
+                weight: parseFloat(formData.weight),
+                goodsType: formData.goodsType,
+                price: parseFloat(formData.price),
+                vehicleType: formData.vehicleType,
+                description: formData.description,
+                distance,
+                pickupLat, pickupLng, dropLat, dropLng,
             });
 
-            setEstimate({
-                ...res.data.data,
-                sourceLat,
-                sourceLon,
-                destLat,
-                destLon
-            });
-        } catch (error) {
-            console.error(error);
-            alert('Failed to get estimate. Please check locations.');
+            setSuccess('Load posted successfully! Truck owners can now bid on it.');
+            setFormData({ source: '', destination: '', weight: '', goodsType: '', price: '', vehicleType: 'Truck', description: '' });
+        } catch (err: any) {
+            setError(err.response?.data?.message || 'Failed to post load');
         } finally {
             setLoading(false);
         }
     };
 
-    const handleBook = async () => {
-        if (!estimate) return;
-        try {
-            await api.post('/rides/book', {
-                source,
-                destination,
-                distance: estimate.distance,
-                price: estimate.price,
-                pickupLat: estimate.sourceLat,
-                pickupLng: estimate.sourceLon,
-                dropLat: estimate.destLat,
-                dropLng: estimate.destLon,
-                vehicleType: 'Truck'
-            });
-            alert('Ride booked successfully! Waiting for driver...');
-        } catch (error) {
-            alert('Booking failed');
-        }
-    };
-
     return (
-        <div className="container py-8 space-y-8">
+        <div className="container py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h1 className="text-3xl font-bold">Customer Dashboard</h1>
 
-            <div className="grid md:grid-cols-2 gap-8 h-[600px]">
-                <Card className="h-full flex flex-col">
+            <div className="grid md:grid-cols-2 gap-8">
+                {/* Post a Load Form */}
+                <Card>
                     <CardHeader>
-                        <CardTitle>Book a Truck</CardTitle>
+                        <CardTitle className="flex items-center gap-2">
+                            <Package className="h-5 w-5 text-primary" />
+                            Post a Load
+                        </CardTitle>
                     </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Pickup Location</label>
-                            <Input
-                                placeholder="Enter city or address"
-                                value={source}
-                                onChange={(e) => setSource(e.target.value)}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Drop Location</label>
-                            <Input
-                                placeholder="Enter city or address"
-                                value={destination}
-                                onChange={(e) => setDestination(e.target.value)}
-                            />
-                        </div>
-
-                        <Button onClick={handleGetEstimate} disabled={loading || !source || !destination} className="w-full">
-                            {loading ? 'Calculating...' : 'Get Estimate'}
-                        </Button>
-
-                        {estimate && (
-                            <div className="p-4 bg-muted rounded-lg space-y-2">
-                                <div className="flex justify-between">
-                                    <span>Distance:</span>
-                                    <span className="font-bold">{estimate.distance} km</span>
+                    <CardContent>
+                        <form onSubmit={handlePostLoad} className="space-y-4">
+                            {error && (
+                                <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">{error}</div>
+                            )}
+                            {success && (
+                                <div className="bg-green-100 text-green-800 text-sm p-3 rounded-md">{success}</div>
+                            )}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Pickup Location</Label>
+                                    <Input
+                                        placeholder="e.g. Pune"
+                                        value={formData.source}
+                                        onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                                        required
+                                    />
                                 </div>
-                                <div className="flex justify-between">
-                                    <span>Estimated Price:</span>
-                                    <span className="font-bold text-green-600">₹{estimate.price}</span>
+                                <div className="space-y-2">
+                                    <Label>Drop Location</Label>
+                                    <Input
+                                        placeholder="e.g. Mumbai"
+                                        value={formData.destination}
+                                        onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
+                                        required
+                                    />
                                 </div>
-                                <Button onClick={handleBook} className="w-full mt-2" variant="default">
-                                    Confirm Booking
-                                </Button>
                             </div>
-                        )}
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Weight (tons)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="e.g. 10"
+                                        value={formData.weight}
+                                        onChange={(e) => setFormData({ ...formData, weight: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Budget (₹)</Label>
+                                    <Input
+                                        type="number"
+                                        placeholder="e.g. 15000"
+                                        value={formData.price}
+                                        onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-2">
+                                    <Label>Goods Type</Label>
+                                    <Input
+                                        placeholder="e.g. Electronics"
+                                        value={formData.goodsType}
+                                        onChange={(e) => setFormData({ ...formData, goodsType: e.target.value })}
+                                        required
+                                    />
+                                </div>
+                                <div className="space-y-2">
+                                    <Label>Vehicle Type</Label>
+                                    <Select
+                                        value={formData.vehicleType}
+                                        onValueChange={(v) => setFormData({ ...formData, vehicleType: v })}
+                                    >
+                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="Truck">Truck</SelectItem>
+                                            <SelectItem value="Container">Container</SelectItem>
+                                            <SelectItem value="Trailer">Trailer</SelectItem>
+                                            <SelectItem value="Mini Truck">Mini Truck</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            </div>
+                            <div className="space-y-2">
+                                <Label>Description (optional)</Label>
+                                <Input
+                                    placeholder="Any special instructions..."
+                                    value={formData.description}
+                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                                />
+                            </div>
+                            <Button type="submit" className="w-full" disabled={loading}>
+                                {loading ? 'Posting...' : 'Post Load'}
+                            </Button>
+                        </form>
                     </CardContent>
                 </Card>
 
-                <div className="h-full rounded-lg overflow-hidden border">
+                {/* Map */}
+                <div className="h-[500px] rounded-lg overflow-hidden border">
                     <MapComponent />
                 </div>
             </div>
 
-
-            {/* Active Shipments Tracking */}
+            {/* My Loads Tracking */}
             <div className="space-y-4">
-                <h2 className="text-2xl font-bold">My Active Shipments</h2>
-                <ActiveRidesList />
+                <h2 className="text-2xl font-bold">My Loads</h2>
+                <MyLoadsList />
             </div>
-        </div >
+        </div>
     );
 }
 
-function ActiveRidesList() {
-    const [rides, setRides] = useState<any[]>([]);
+function MyLoadsList() {
+    const [loads, setLoads] = useState<any[]>([]);
 
     useEffect(() => {
-        const fetchRides = async () => {
+        const fetchLoads = async () => {
             try {
-                const res = await api.get('/rides/my-rides');
-                setRides(res.data.data);
+                const res = await api.get('/loads/my-loads');
+                setLoads(res.data.data);
             } catch (error) {
-                console.error('Failed to fetch rides', error);
+                console.error('Failed to fetch loads', error);
             }
         };
-        fetchRides();
+        fetchLoads();
     }, []);
 
-    if (rides.length === 0) {
+    const getStatusColor = (status: string) => {
+        const map: Record<string, string> = {
+            'OPEN': 'bg-yellow-100 text-yellow-800',
+            'ACCEPTED_BY_OWNER': 'bg-blue-100 text-blue-800',
+            'ASSIGNED_TO_DRIVER': 'bg-purple-100 text-purple-800',
+            'IN_TRANSIT': 'bg-orange-100 text-orange-800',
+            'COMPLETED': 'bg-green-100 text-green-800',
+            'CANCELLED': 'bg-red-100 text-red-800',
+        };
+        return map[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const handleCancel = async (loadId: string) => {
+        if (!confirm('Are you sure you want to cancel this load?')) return;
+        try {
+            await api.patch(`/loads/${loadId}/cancel`);
+            setLoads(prev => prev.map(l =>
+                (l._id === loadId || l.id === loadId) ? { ...l, status: 'CANCELLED' } : l
+            ));
+        } catch (err: any) {
+            alert(err.response?.data?.message || 'Cannot cancel this load');
+        }
+    };
+
+    if (loads.length === 0) {
         return (
             <Card>
                 <CardContent className="p-8 text-center text-muted-foreground">
-                    No active shipments found. Book a ride to see it here.
+                    No loads posted yet. Post a load above to get started.
                 </CardContent>
             </Card>
         );
@@ -173,33 +244,55 @@ function ActiveRidesList() {
 
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {rides.map((ride) => (
-                <Card key={ride.id || ride._id} className="border-l-4 border-l-blue-500">
+            {loads.map((load) => (
+                <Card key={load._id || load.id} className="border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
                     <CardHeader className="pb-2">
                         <div className="flex justify-between items-start">
                             <CardTitle className="text-base font-semibold">
-                                {ride.source} ➝ {ride.destination}
+                                {load.source} → {load.destination}
                             </CardTitle>
-                            <Badge variant={ride.status === 'COMPLETED' ? 'default' : 'secondary'}>
-                                {ride.status}
+                            <Badge className={getStatusColor(load.status)}>
+                                {load.status.replace(/_/g, ' ')}
                             </Badge>
                         </div>
                     </CardHeader>
                     <CardContent className="text-sm space-y-2">
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Price:</span>
-                            <span className="font-bold">₹{ride.price}</span>
+                            <span className="text-muted-foreground">Goods:</span>
+                            <span>{load.goodsType}</span>
                         </div>
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">Distance:</span>
-                            <span>{ride.distance} km</span>
+                            <span className="text-muted-foreground">Weight:</span>
+                            <span>{load.weight} tons</span>
                         </div>
-                        {ride.driverId && (
-                            <div className="pt-2 border-t mt-2">
-                                <p className="font-semibold mb-1">Driver Details</p>
-                                <p>{ride.driverId.user?.name || 'Assigned'}</p>
-                                <p className="text-xs text-muted-foreground">{ride.vehicleId?.number}</p>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Budget:</span>
+                            <span className="font-bold text-green-600">₹{load.price}</span>
+                        </div>
+                        {load.distance > 0 && (
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Distance:</span>
+                                <span>{load.distance} km</span>
                             </div>
+                        )}
+
+                        {/* Owner info after acceptance */}
+                        {load.ownerId && load.status !== 'OPEN' && (
+                            <div className="pt-2 border-t mt-2">
+                                <p className="text-xs text-muted-foreground mb-1">Accepted by Owner</p>
+                                <p className="font-medium">{load.ownerId?.companyName || 'Transport Company'}</p>
+                            </div>
+                        )}
+
+                        {load.status === 'OPEN' && (
+                            <Button
+                                variant="destructive"
+                                size="sm"
+                                className="w-full mt-2"
+                                onClick={() => handleCancel(load._id || load.id)}
+                            >
+                                Cancel Load
+                            </Button>
                         )}
                     </CardContent>
                 </Card>
