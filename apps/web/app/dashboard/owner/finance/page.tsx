@@ -24,7 +24,7 @@ import {
 
 export default function FinancePage() {
     const [loading, setLoading] = useState(true);
-    const [financeData, setFinanceData] = useState<any>({ transactions: [], stats: {} });
+    const [financeData, setFinanceData] = useState<any>({ transactions: [], summary: {} });
     const [documents, setDocuments] = useState<any[]>([]);
 
     // Upload Form State
@@ -117,7 +117,7 @@ export default function FinancePage() {
                                 <DollarSign className="h-4 w-4 text-green-500" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-white">₹{financeData.stats?.revenue?.toLocaleString() || '0'}</div>
+                                <div className="text-2xl font-bold text-white">₹{financeData.summary?.totalRevenue?.toLocaleString() || '0'}</div>
                                 <p className="text-xs text-green-500 flex items-center mt-1">
                                     <TrendingUp className="h-3 w-3 mr-1" />
                                     +12.5% from last month
@@ -130,7 +130,7 @@ export default function FinancePage() {
                                 <CreditCard className="h-4 w-4 text-orange-500" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-white">₹{financeData.stats?.expenses?.toLocaleString() || '0'}</div>
+                                <div className="text-2xl font-bold text-white">₹{financeData.summary?.totalExpenses?.toLocaleString() || '0'}</div>
                                 <p className="text-xs text-orange-500 flex items-center mt-1">
                                     <TrendingDown className="h-3 w-3 mr-1" />
                                     +5.2% (Fuel Costs)
@@ -143,7 +143,7 @@ export default function FinancePage() {
                                 <DollarSign className="h-4 w-4 text-blue-400" />
                             </CardHeader>
                             <CardContent>
-                                <div className="text-2xl font-bold text-blue-400">₹{financeData.stats?.profit?.toLocaleString() || '0'}</div>
+                                <div className="text-2xl font-bold text-blue-400">₹{financeData.summary?.netProfit?.toLocaleString() || '0'}</div>
                                 <p className="text-xs text-blue-300 mt-1">Margin: 67%</p>
                             </CardContent>
                         </Card>
