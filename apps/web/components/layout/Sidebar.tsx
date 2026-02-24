@@ -55,7 +55,7 @@ export function Sidebar({ className }: SidebarProps) {
                 <div className="px-3 py-2">
                     <div className="flex items-center gap-2 px-4 mb-6">
                         <Truck className="h-6 w-6 text-primary" />
-                        <h2 className="text-lg font-bold tracking-tight">Movix</h2>
+                        <h2 className="text-lg font-bold tracking-tight">TruckNet India</h2>
                     </div>
                     <div className="space-y-1">
                         {links.map((link) => (

@@ -1,5 +1,6 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
+import { logger } from '../utils/logger';
 import { AiService } from '../services/ai.service';
 import { UserModel } from '../models/mongoose/User';
 import { DriverProfileModel } from '../models/mongoose/DriverProfile';
@@ -20,7 +21,7 @@ export const getInsights = async (req: AuthRequest, res: Response, next: NextFun
             return;
         }
 
-        console.log(`[AI] Processing request for ${role} - ${userId}`);
+        logger.info('AI insights request', { role, userId });
 
         // Find user by email or id
         let user = null;
@@ -82,18 +83,17 @@ export const getInsights = async (req: AuthRequest, res: Response, next: NextFun
         const insights = await aiService.getInsights(role, dbUserId, context);
         res.status(200).json({ status: 'success', data: insights });
     } catch (error: any) {
-        console.error('[AI Controller Error]', error);
+        logger.error('AI controller error', { error: error.message });
         res.status(500).json({
             status: 'error',
             message: 'Internal Server Error',
-            details: error.message
         });
     }
 };
 
 export const seedData = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
-        console.log('Seeding Demo Data via API...');
+        logger.info('Seeding demo data via API');
 
         const hashedPassword = await bcrypt.hash('password123', 10);
 

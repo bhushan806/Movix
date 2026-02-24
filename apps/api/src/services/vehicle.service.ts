@@ -1,5 +1,6 @@
 import { VehicleModel } from '../models/mongoose/Vehicle';
 import { AppError } from '../utils/AppError';
+import { logger } from '../utils/logger';
 
 export class VehicleService {
     async createVehicle(data: {
@@ -78,7 +79,7 @@ export class VehicleService {
                 });
             }
         } catch (error) {
-            console.error('Socket emission failed:', error);
+            logger.error('Socket emission failed', { error: (error as any).message });
         }
 
         return updatedVehicle;

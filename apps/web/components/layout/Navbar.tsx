@@ -57,7 +57,7 @@ export function Navbar() {
                     <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
                         <Truck className="h-6 w-6 text-primary" />
                     </div>
-                    <span className="font-space tracking-tight hidden sm:inline-block">Movix</span>
+                    <span className="font-space tracking-tight hidden sm:inline-block">TruckNet India</span>
                 </Link>
 
                 {/* Desktop Nav */}

@@ -1,14 +1,17 @@
 import axios from 'axios';
 
+// SECURITY: API base URL from environment variable, never hardcoded
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+
 const api = axios.create({
-    baseURL: 'http://localhost:5000/api',
+    baseURL: API_BASE_URL,
     timeout: 15000, // 15s request timeout
     headers: {
         'Content-Type': 'application/json',
     },
 });
 
-// Add interceptor to attach JWT token
+// Attach JWT token to every outgoing request
 api.interceptors.request.use((config) => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     if (token) {
@@ -21,7 +24,7 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Handle 401: redirect to login
+        // Handle 401: auto-redirect to login
         if (error.response && error.response.status === 401) {
             if (typeof window !== 'undefined') {
                 localStorage.removeItem('token');
@@ -30,21 +33,13 @@ api.interceptors.response.use(
             }
         }
 
-        // Handle 429: rate limit
+        // Handle 429: rate limit — no console.log in production
         if (error.response && error.response.status === 429) {
-            const message = error.response.data?.message || 'Too many requests. Please wait.';
-            console.warn('[API] Rate limited:', message);
+            // Rate limited — error will propagate to caller's catch block
         }
 
-        // Handle timeout
-        if (error.code === 'ECONNABORTED') {
-            console.error('[API] Request timed out');
-        }
-
-        // Handle network errors
-        if (!error.response) {
-            console.error('[API] Network error — server may be down');
-        }
+        // Handle timeout — error will propagate to caller's catch block
+        // Handle network errors — error will propagate to caller's catch block
 
         return Promise.reject(error);
     }

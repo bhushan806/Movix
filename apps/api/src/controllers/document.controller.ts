@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthRequest } from '../middlewares/auth.middleware';
 import DocumentModel from '../models/Document';
+import { logger } from '../utils/logger';
 
 export const getDocuments = async (req: AuthRequest, res: Response, next: NextFunction) => {
     try {
@@ -38,7 +39,7 @@ export const uploadDocument = async (req: AuthRequest, res: Response, next: Next
 
         res.status(201).json({ status: 'success', data: newDoc });
     } catch (error) {
-        console.error('Upload Error:', error);
+        logger.error('Upload error', { error: (error as any).message });
         next(error);
     }
 };

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { logger } from '../utils/logger';
 
 const prisma = new PrismaClient();
 
@@ -28,9 +29,9 @@ export class AILoggerService {
                     confidence
                 }
             });
-            console.log(`[AI-Log] Prediction logged for ${service}`);
-        } catch (error) {
-            console.error(`[AI-Log-Error] Failed to log prediction:`, error);
+            logger.info('Prediction logged', { service });
+        } catch (error: any) {
+            logger.error('Failed to log prediction', { service, error: error.message });
         }
     }
 
@@ -53,9 +54,9 @@ export class AILoggerService {
                     sourceId
                 }
             });
-            console.log(`[AI-Log] Training Data logged for ${service}`);
-        } catch (error) {
-            console.error(`[AI-Log-Error] Failed to log training data:`, error);
+            logger.info('Training data logged', { service });
+        } catch (error: any) {
+            logger.error('Failed to log training data', { service, error: error.message });
         }
     }
 }

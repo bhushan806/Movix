@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import dotenv from 'dotenv';
+import { logger } from '../utils/logger';
 dotenv.config();
 
 interface ChatMessage {
@@ -31,7 +32,7 @@ export const callGrokAPI = async (messages: ChatMessage[]) => {
             // SECURITY: Never log the API key; only log sanitized error info
             const status = error.response?.status;
             const msg = error.response?.data?.error?.message || error.message;
-            console.error(`Groq API Error [${status}]:`, msg);
+            logger.error('Groq API error', { status, message: msg });
             // Fallthrough to next provider
         }
     }

@@ -61,7 +61,7 @@ export default function RegisterPage() {
                     </div>
                     <CardTitle className="text-2xl font-bold tracking-tight">Create an Account</CardTitle>
                     <CardDescription>
-                        Join Movix to manage your logistics
+                        Join TruckNet India to manage your logistics
                     </CardDescription>
                 </CardHeader>
                 <form onSubmit={handleRegister}>

@@ -2,6 +2,7 @@ import { DriverProfileModel } from '../models/mongoose/DriverProfile';
 import { ConnectionRequestModel } from '../models/mongoose/ConnectionRequest';
 import { VehicleModel } from '../models/mongoose/Vehicle';
 import { UserModel } from '../models/mongoose/User';
+import { logger } from '../utils/logger';
 
 export class DriverService {
     async getMyDrivers(ownerId: string) {
@@ -35,7 +36,7 @@ export class DriverService {
                 };
             });
         } catch (error) {
-            console.error('Error in getMyDrivers:', error);
+            logger.error('Error in getMyDrivers', { error: (error as any).message });
             throw error;
         }
     }
@@ -70,7 +71,7 @@ export class DriverService {
                 vehicle: vehicle || null
             };
         } catch (error) {
-            console.error('Error in DriverService.getProfile:', error);
+            logger.error('Error in DriverService.getProfile', { error: (error as any).message });
             throw error;
         }
     }
