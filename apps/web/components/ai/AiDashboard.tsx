@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "@/lib/api";
 import AiInsightCard from "./AiInsightCard";
 import { Sparkles, RefreshCw } from "lucide-react";
 
@@ -22,8 +22,8 @@ export default function AiDashboard() {
             if (role === "OWNER") demoUserId = "demo.owner@trucknet.in";
             if (role === "CUSTOMER") demoUserId = "demo.customer@trucknet.in";
 
-            // API call to our new Node.js endpoint
-            const res = await axios.post("http://localhost:5000/api/ai/insights", {
+            // API call to our Node.js endpoint via shared api module
+            const res = await api.post("/ai/insights", {
                 role: role,
                 userId: demoUserId
             });

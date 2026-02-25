@@ -9,12 +9,8 @@
         "dev": "turbo run dev --filter=./apps/*",
         "build": "turbo run build",
         "lint": "turbo run lint"
-         "start": "node server.js"
     },
     "devDependencies": {
         "turbo": "^1.10.16"
-    },
-    "dependencies": {
-        "@prisma/client": "^7.0.1"
     }
 }

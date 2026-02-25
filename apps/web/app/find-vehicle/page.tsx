@@ -6,6 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import MapComponent from '@/components/map/Map';
 
+import api from '@/lib/api';
+
 export default function FindVehiclePage() {
     const [trackingId, setTrackingId] = useState('');
     const [trackingData, setTrackingData] = useState<any>(null);
@@ -18,12 +20,8 @@ export default function FindVehiclePage() {
                 const vehicleType = "Heavy Truck";
                 const weatherCondition = "Rain"; // Mock weather
 
-                const res = await fetch('http://localhost:5000/api/ai/eta', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ baseTime, weatherCondition, vehicleType })
-                });
-                const data = await res.json();
+                const res = await api.post('/ai/eta', { baseTime, weatherCondition, vehicleType });
+                const data = res.data;
 
                 if (data.status === 'success') {
                     const etaDetails = data.data;

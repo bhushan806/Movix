@@ -7,6 +7,8 @@ import { z } from 'zod';
 
 dotenv.config();
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const envSchema = z.object({
     PORT: z.string().default('5000'),
     DATABASE_URL: z.string(),
@@ -17,10 +19,11 @@ const envSchema = z.object({
     // AI provider keys (all optional — app falls back gracefully)
     GROQ_API_KEY: z.string().optional(),
     OLLAMA_HOST: z.string().optional(),
-    AI_ENGINE_URL: z.string().default('http://localhost:8000'),
+    // SECURITY: No localhost default in production
+    AI_ENGINE_URL: isProd ? z.string() : z.string().default('http://localhost:8000'),
 
-    // SECURITY: Restrict CORS to your frontend origin
-    CORS_ORIGIN: z.string().default('http://localhost:3000'),
+    // SECURITY: Restrict CORS to your frontend origin — required in production
+    CORS_ORIGIN: isProd ? z.string() : z.string().default('http://localhost:3000'),
 });
 
 const envVars = envSchema.safeParse(process.env);

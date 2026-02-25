@@ -3,7 +3,7 @@ import { env } from '../config/env';
 import { logger } from '../utils/logger';
 
 // Base URL for AI Engine
-const AI_ENGINE_URL = env.AI_ENGINE_URL || 'http://localhost:8000';
+const AI_ENGINE_URL = env.AI_ENGINE_URL;
 const AI_TIMEOUT_MS = 5000;
 const AI_MAX_RETRIES = 2;
 

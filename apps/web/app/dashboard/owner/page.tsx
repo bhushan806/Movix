@@ -48,8 +48,9 @@ export default function OwnerDashboard() {
     useEffect(() => {
         fetchVehicles();
 
-        // Socket.io connection
-        const socket = io('http://localhost:5000');
+        // Socket.io connection — derive base URL from API URL env var
+        const socketUrl = process.env.NEXT_PUBLIC_API_URL?.replace('/api', '') || 'http://localhost:5000';
+        const socket = io(socketUrl);
 
         socket.on('connect', () => {
             console.log('Connected to socket server');
