@@ -5,17 +5,10 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Truck, LogOut, Menu, X } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
-import { cn } from '@/lib/utils';
-// Sheet component not available, using custom drawer logic below.
-// Redefining the strategy to Custom Drawer.
 
-export function Navbar() {
-    const { user, logout } = useAuth();
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-    const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
-
-    const NavItems = () => (
+// NavItems extracted outside Navbar to avoid "cannot create components during render" error
+function NavItems({ user }: { user: any }) {
+    return (
         <>
             {!user && (
                 <>
@@ -48,6 +41,13 @@ export function Navbar() {
             )}
         </>
     );
+}
+
+export function Navbar() {
+    const { user, logout } = useAuth();
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+    const toggleMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
 
     return (
         <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -62,7 +62,7 @@ export function Navbar() {
 
                 {/* Desktop Nav */}
                 <nav className="hidden md:flex items-center gap-6">
-                    <NavItems />
+                    <NavItems user={user} />
                 </nav>
 
                 {/* Actions & Mobile Toggle */}
@@ -100,7 +100,7 @@ export function Navbar() {
                 <div className="md:hidden fixed inset-0 top-16 z-50 bg-background border-t animate-in slide-in-from-top-5 fade-in duration-200">
                     <div className="container py-8 px-4 flex flex-col gap-6">
                         <nav className="flex flex-col gap-4">
-                            <NavItems />
+                            <NavItems user={user} />
                         </nav>
                         <div className="border-t pt-6 flex flex-col gap-4">
                             {user ? (

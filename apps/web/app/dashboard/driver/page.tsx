@@ -270,10 +270,6 @@ export default function DriverDashboard() {
 function ConnectionRequests() {
     const [requests, setRequests] = useState<any[]>([]);
 
-    useEffect(() => {
-        fetchRequests();
-    }, []);
-
     const fetchRequests = async () => {
         try {
             const res = await api.get('/requests/driver');
@@ -282,6 +278,10 @@ function ConnectionRequests() {
             console.error('Failed to fetch requests', error);
         }
     };
+
+    useEffect(() => {
+        fetchRequests();
+    }, []);
 
     const handleRespond = async (id: string, status: 'ACCEPTED' | 'REJECTED') => {
         try {

@@ -1,5 +1,6 @@
 'use client';
 
+import { use } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,7 +8,8 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Phone, MessageCircle, Share2, ShieldCheck, MapPin, Truck, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
-export default function TrackingPage({ params }: { params: { id: string } }) {
+export default function TrackingPage({ params }: { params: Promise<{ id: string }> }) {
+    const { id } = use(params);
     // Mock Data simulating "In Transit" state
     const [status, setStatus] = useState('IN_TRANSIT');
 
