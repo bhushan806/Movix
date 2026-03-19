@@ -19,6 +19,7 @@ const envSchema = z.object({
     // AI provider keys (all optional — app falls back gracefully)
     GROQ_API_KEY: z.string().optional(),
     OLLAMA_HOST: z.string().optional(),
+    HF_API_TOKEN: z.string().optional(),
     // SECURITY: No localhost default in production
     AI_ENGINE_URL: isProd ? z.string() : z.string().default('http://localhost:8000'),
 

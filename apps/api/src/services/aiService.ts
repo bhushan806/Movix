@@ -52,17 +52,28 @@ export const callGrokAPI = async (messages: ChatMessage[]) => {
         }
     }
 
-    // Priority 3: HuggingFace (Public API - Zero Config Fallback)
+    // Priority 3: HuggingFace (Authenticated Fallback)
     try {
-        const userMessage = messages.find(m => m.role === 'user')?.content || "";
         const systemMessage = messages.find(m => m.role === 'system')?.content || "";
-        const prompt = `${systemMessage}\n\nUser: ${userMessage}\nAssistant:`;
+        const userMessage = messages.find(m => m.role === 'user')?.content || "";
+
+        // Format prompt using Mistral [INST] template
+        const prompt = `<s>[INST] <<SYS>>\n${systemMessage}\n<</SYS>>\n\n${userMessage} [/INST]`;
+
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json'
+        };
+
+        // Add Authorization header if HF token is available
+        if (process.env.HF_API_TOKEN) {
+            headers['Authorization'] = `Bearer ${process.env.HF_API_TOKEN}`;
+        }
 
         const response = await axios.post(
             'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2',
             { inputs: prompt },
             {
-                headers: { 'Content-Type': 'application/json' },
+                headers,
                 timeout: 15000,
             }
         );
@@ -72,9 +83,22 @@ export const callGrokAPI = async (messages: ChatMessage[]) => {
             if (text.startsWith(prompt)) text = text.substring(prompt.length);
             return text.trim();
         }
-    } catch {
-        // HuggingFace fallback failed
+    } catch (error: any) {
+        const status = error.response?.status;
+
+        if (status === 401) {
+            logger.error('HuggingFace error: HF token invalid or missing');
+        } else if (status === 503) {
+            logger.error('HuggingFace error: HF model loading, retry in 20s');
+        } else {
+            logger.error('HuggingFace API error', {
+                status,
+                message: error.response?.data?.error || error.message
+            });
+        }
+        // Fall through — all 3 providers failed
     }
 
-    throw new Error("No AI provider available. Please set GROQ_API_KEY (Cloud) or run Ollama (Local).");
+    // All 3 providers failed — return Hindi fallback message
+    return "TruckNet Dost abhi available nahi hai.\nThodi der baad try karo. 🙏";
 };

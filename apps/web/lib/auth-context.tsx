@@ -48,8 +48,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = () => {
+        const currentUser = user || JSON.parse(localStorage.getItem('user') || '{}');
+        if (currentUser?.id) {
+            localStorage.removeItem(`chat_${currentUser.id}`);
+        }
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        // Clear all chats just in case to be safe
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('chat_')) {
+                localStorage.removeItem(key);
+            }
+        });
         setUser(null);
         router.push('/auth/login');
     };

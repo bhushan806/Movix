@@ -25,6 +25,7 @@ import assistantRoutes from './routes/assistant.routes';
 import requestRoutes from './routes/request.routes';
 import financeRoutes from './routes/finance.routes';
 import documentRoutes from './routes/document.routes';
+import dostRoutes from './routes/dost.routes';
 
 import { connectMongoose } from './config/mongoose';
 
@@ -84,6 +85,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/requests', requestRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/documents', documentRoutes);
+app.use('/api/dost', dostRoutes);
 
 // ── 404 Handler ──
 app.all('*', (req, _res, next) => {
