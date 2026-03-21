@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus } from 'lucide-react';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 
 export function PostLoadDialog({ onLoadPosted }: { onLoadPosted: () => void }) {
     const [open, setOpen] = useState(false);
@@ -38,10 +39,11 @@ export function PostLoadDialog({ onLoadPosted }: { onLoadPosted: () => void }) {
             });
             setOpen(false);
             setFormData({ source: '', destination: '', weight: '', goodsType: '', price: '' });
+            toast.success('Load posted successfully!');
             onLoadPosted();
         } catch (error) {
             console.error(error);
-            alert('Failed to post load');
+            toast.error('Failed to post load. Please try again.');
         } finally {
             setLoading(false);
         }

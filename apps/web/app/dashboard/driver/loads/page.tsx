@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 import { ArrowLeft, MapPin, Calendar, Truck } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,10 +33,10 @@ export default function AvailableLoadsPage() {
         setActionLoading(rideId);
         try {
             await api.post(`/rides/${rideId}/accept`);
-            alert('Ride accepted successfully!');
+            toast.success('Ride accepted successfully!');
             fetchRides(); // Refresh list
         } catch (error: any) {
-            alert(error.response?.data?.message || 'Failed to accept ride');
+            toast.error(error.response?.data?.message || 'Failed to accept ride');
         } finally {
             setActionLoading(null);
         }

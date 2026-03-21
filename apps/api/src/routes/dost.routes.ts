@@ -19,7 +19,8 @@ router.get('/history', async (req: AuthRequest, res: Response, next: NextFunctio
             return;
         }
 
-        const chatDoc = await ChatModel.findOne({ userId });
+        const role = req.user?.role || 'CUSTOMER';
+        const chatDoc = await ChatModel.findOne({ userId, role });
         res.status(200).json({
             status: 'success',
             history: chatDoc ? chatDoc.messages : []
@@ -38,7 +39,8 @@ router.delete('/history', async (req: AuthRequest, res: Response, next: NextFunc
             return;
         }
 
-        await ChatModel.deleteOne({ userId });
+        const role = req.user?.role || 'CUSTOMER';
+        await ChatModel.deleteOne({ userId, role });
         res.status(200).json({ status: 'success', message: 'Chat history cleared' });
     } catch (error) {
         next(error);
@@ -68,7 +70,7 @@ router.post('/chat', async (req: AuthRequest, res: Response, next: NextFunction)
         // Skip DB save for anonymous users
         if (userId !== 'anonymous') {
             try {
-                let chatDoc = await ChatModel.findOne({ userId });
+                let chatDoc = await ChatModel.findOne({ userId, role });
                 if (!chatDoc) {
                     chatDoc = new ChatModel({ userId, role, messages: [] });
                 }

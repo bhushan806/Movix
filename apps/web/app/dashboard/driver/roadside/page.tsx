@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 import LocationPickerMap from '@/components/map/LocationPickerMap';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,8 +26,8 @@ export default function RoadsidePage() {
     };
 
     const handleSubmit = async () => {
-        if (!location) return alert('Please select a location');
-        if (!formData.description) return alert('Please describe the issue');
+        if (!location) return toast.error('Please select a location');
+        if (!formData.description) return toast.error('Please describe the issue');
 
         setLoading(true);
         try {
@@ -48,7 +49,7 @@ export default function RoadsidePage() {
             router.push(`/dashboard/driver/roadside/${breakdownId}`);
         } catch (error) {
             console.error('Failed to report breakdown', error);
-            alert('Failed to submit report. Please try again.');
+            toast.error('Failed to submit report. Please try again.');
         } finally {
             setLoading(false);
         }
@@ -93,11 +94,11 @@ export default function RoadsidePage() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                    <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => alert('Voice recording simulated')}>
+                    <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => toast.info('Voice recording simulated')}>
                         <Mic className="h-6 w-6" />
                         Record Voice
                     </Button>
-                    <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => alert('Photo upload simulated')}>
+                    <Button variant="outline" className="h-20 flex flex-col gap-2" onClick={() => toast.info('Photo upload simulated')}>
                         <Camera className="h-6 w-6" />
                         Upload Photo
                     </Button>

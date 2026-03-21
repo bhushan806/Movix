@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import MapComponent from '@/components/map/Map';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 import { Package, MapPin, Clock, Truck } from 'lucide-react';
 
 export default function CustomerDashboard() {
@@ -228,7 +229,7 @@ function MyLoadsList() {
                 (l._id === loadId || l.id === loadId) ? { ...l, status: 'CANCELLED' } : l
             ));
         } catch (err: any) {
-            alert(err.response?.data?.message || 'Cannot cancel this load');
+            toast.error(err.response?.data?.message || 'Cannot cancel this load');
         }
     };
 

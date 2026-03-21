@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { User, Truck, FileText, Shield, Phone, Mail, Star } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -116,7 +116,7 @@ function DriverCard({ driver }: { driver: any }) {
                     <DialogContent className="bg-slate-900 border-slate-800 text-white sm:max-w-[500px]">
                         <DialogHeader>
                             <DialogTitle>Driver Documents</DialogTitle>
-                            <CardDescription className="text-slate-400">Verified legal documents for {driver.user?.name}</CardDescription>
+                            <DialogDescription className="text-slate-400">Verified legal documents for {driver.user?.name}</DialogDescription>
                         </DialogHeader>
                         <div className="space-y-3 py-4">
                             {driver.documents && driver.documents.length > 0 ? (

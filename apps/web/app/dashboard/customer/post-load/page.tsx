@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, ChevronRight, Truck, MapPin, IndianRupee, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export default function PostLoadPage() {
     const router = useRouter();
@@ -39,7 +40,7 @@ export default function PostLoadPage() {
         // Simulate API call
         await new Promise(resolve => setTimeout(resolve, 1500));
         setLoading(false);
-        alert("Load Posted Successfully!");
+        toast.success("Load Posted Successfully!");
         router.push('/dashboard/customer/tracking/123'); // Redirect to tracking mock
     };
 

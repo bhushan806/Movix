@@ -7,7 +7,8 @@ import { Phone, Eye, Plus, ArrowLeft, MapPin, Calendar, Briefcase } from 'lucide
 import Link from 'next/link';
 import api from '@/lib/api';
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { toast } from 'sonner';
 
 export default function FindDriversPage() {
     const [drivers, setDrivers] = useState<any[]>([]);
@@ -125,6 +126,9 @@ export default function FindDriversPage() {
                                     <DialogContent className="sm:max-w-[500px]">
                                         <DialogHeader>
                                             <DialogTitle>Driver Profile</DialogTitle>
+                                            <DialogDescription className="sr-only">
+                                                Detailed professional profile for the selected driver candidate.
+                                            </DialogDescription>
                                         </DialogHeader>
                                         <div className="space-y-6 py-4">
                                             <div className="flex items-center gap-4">
@@ -150,9 +154,9 @@ export default function FindDriversPage() {
                                                                         driverId: profile.id,
                                                                         message: "I'd like to hire you for my fleet."
                                                                     });
-                                                                    alert(`Connection request sent to ${profile.user.name}!`);
+                                                                    toast.success(`Connection request sent to ${profile.user.name}!`);
                                                                 } catch (error: any) {
-                                                                    alert(error.response?.data?.message || 'Failed to send request');
+                                                                    toast.error(error.response?.data?.message || 'Failed to send request');
                                                                 }
                                                             }}
                                                         >

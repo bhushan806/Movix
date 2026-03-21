@@ -1,7 +1,10 @@
 import { Router } from 'express';
 import * as aiController from '../controllers/ai.controller';
+import { protect } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+router.use(protect);
 
 // Unified Endpoint
 router.post('/insights', aiController.getInsights);

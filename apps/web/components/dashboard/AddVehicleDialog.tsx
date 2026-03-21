@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Plus } from 'lucide-react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 
 export function AddVehicleDialog({ onVehicleAdded }: { onVehicleAdded: () => void }) {
     const [open, setOpen] = useState(false);
@@ -37,10 +38,11 @@ export function AddVehicleDialog({ onVehicleAdded }: { onVehicleAdded: () => voi
             });
             setOpen(false);
             setFormData({ number: '', type: '', capacity: '' });
+            toast.success('Vehicle added successfully!');
             onVehicleAdded();
         } catch (error) {
             console.error(error);
-            alert('Failed to add vehicle');
+            toast.error('Failed to add vehicle. Please try again.');
         } finally {
             setLoading(false);
         }

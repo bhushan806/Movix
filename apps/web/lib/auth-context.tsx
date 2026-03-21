@@ -54,12 +54,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        // Clear all chats just in case to be safe
-        Object.keys(localStorage).forEach(key => {
-            if (key.startsWith('chat_')) {
-                localStorage.removeItem(key);
-            }
-        });
         setUser(null);
         router.push('/auth/login');
     };

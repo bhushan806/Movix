@@ -17,6 +17,7 @@ import { calculateDynamicPrice } from '../ai/pricing.engine';
 import { assessDeliveryRisk } from '../ai/risk.engine';
 import { optimizeLoadSharing } from '../ai/loadSharing.engine';
 import { generateOwnerInsights } from '../ai/insights.engine';
+import { enrichWithPredictiveContext } from '../ai/extensions/dost.extension';
 
 // ── Master System Prompt (hardcoded) ──
 const TRUCKNET_DOST_PROMPT = `You are TRUCKNET DOST — the official AI brain of TruckNet India. You are like Jarvis from Iron Man but built for Indian roads and trucking.
@@ -259,7 +260,7 @@ async function fetchStructuredData(module: string, role: string, message: string
                     vehicleType: 'Truck',
                     weight: 10,
                 }).then(result => { structuredData.pricing = result; })
-                 .catch(e => logger.warn('Structured pricing failed', { error: (e as any).message }))
+                    .catch(e => logger.warn('Structured pricing failed', { error: (e as any).message }))
             );
         }
 
@@ -271,7 +272,7 @@ async function fetchStructuredData(module: string, role: string, message: string
                     originCity: 'Pune', destinationCity: 'Mumbai',
                     driverRating: 4.2,
                 }).then(result => { structuredData.risk = result; })
-                 .catch(e => logger.warn('Structured risk failed', { error: (e as any).message }))
+                    .catch(e => logger.warn('Structured risk failed', { error: (e as any).message }))
             );
         }
 
@@ -323,7 +324,7 @@ export async function chat(params: DostChatParams): Promise<DostResponse> {
     if (effectiveHistory.length === 0 && userId && userId !== 'anonymous') {
         try {
             const { ChatModel } = await import('../models/mongoose/Chat');
-            const chatDoc = await ChatModel.findOne({ userId }).lean();
+            const chatDoc = await ChatModel.findOne({ userId, role }).lean();
             if (chatDoc && chatDoc.messages && chatDoc.messages.length > 0) {
                 // Take last 10 messages, exclude system messages
                 effectiveHistory = chatDoc.messages
@@ -339,7 +340,16 @@ export async function chat(params: DostChatParams): Promise<DostResponse> {
 
     // 4. Run LLM call and structured AI data fetch in parallel
     const contextBlock = JSON.stringify(databaseContext);
-    const fullSystemPrompt = `${TRUCKNET_DOST_PROMPT}\n\nCURRENT USER ROLE: ${role}\n\nDATA CONTEXT:\n${contextBlock}`;
+
+    // Inject predictive intelligence context (non-blocking)
+    let predictiveContext = '';
+    try {
+        predictiveContext = await enrichWithPredictiveContext(userId, role);
+    } catch {
+        // Predictive context is optional — never block the chat
+    }
+
+    const fullSystemPrompt = `${TRUCKNET_DOST_PROMPT}\n\nCURRENT USER ROLE: ${role}\n\nDATA CONTEXT:\n${contextBlock}${predictiveContext}`;
 
     const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = [
         { role: 'system', content: fullSystemPrompt }

@@ -2,12 +2,14 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { MessageSquare, Mic, Send, X, Bot, User, Volume2, VolumeX } from 'lucide-react';
+import { Mic, Send, Bot, Volume2, VolumeX, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { AIOrb } from './AIOrb';
+import { AIPanel } from './AIPanel';
+import { SmartAlerts } from './SmartAlerts';
+import { toast } from 'sonner';
 
 interface Message {
     role: 'user' | 'assistant';
@@ -154,23 +156,38 @@ export default function AIAssistant() {
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const router = useRouter();
 
-    // Load chat history based on user when chat opens
+    // Reset state completely when user identity changes
+    const [currentUserId, setCurrentUserId] = useState<string | undefined>(undefined);
+
+    useEffect(() => {
+        if (user?.id !== currentUserId) {
+            console.log(`[Chat Debug] User identity changed from ${currentUserId} to ${user?.id}. Clearing state.`);
+            setMessages([]);
+            setShowQuickActions(false);
+            setCurrentUserId(user?.id);
+        }
+    }, [user?.id, currentUserId]);
+
+    // Load chat history based on user
     useEffect(() => {
         if (!isOpen) return;
 
         if (!user?.id) {
+            console.log('[Chat Debug] Chat opened but no user ID. Clearing state.');
             setMessages([]);
             setShowQuickActions(false);
             return;
         }
 
         const loadChatHistory = async () => {
+            console.log(`[Chat Debug] Loading chat history for user: ${user.id}`);
             const localKey = `chat_${user.id}`;
             const localData = localStorage.getItem(localKey);
             
             if (localData) {
                 const parsed = JSON.parse(localData);
                 if (parsed.length > 0) {
+                    console.log(`[Chat Debug] Loaded ${parsed.length} messages from local storage mapping to ${localKey}`);
                     setMessages(parsed);
                     setShowQuickActions(false);
                 }
@@ -179,11 +196,14 @@ export default function AIAssistant() {
             try {
                 const res = await api.get('/dost/history');
                 const history = res.data.history || [];
+                console.log(`[Chat Debug] Fetched ${history.length} messages from API for user: ${user.id}`);
+                
                 if (history.length > 0) {
                     setMessages(history);
                     localStorage.setItem(localKey, JSON.stringify(history));
                     setShowQuickActions(false);
                 } else if (!localData || JSON.parse(localData).length === 0) {
+                    console.log(`[Chat Debug] No history found. Setting welcome message for role: ${user.role}`);
                     setMessages([{
                         role: 'assistant',
                         content: getWelcomeMessage(user?.role)
@@ -191,7 +211,7 @@ export default function AIAssistant() {
                     setShowQuickActions(true);
                 }
             } catch (error) {
-                console.error("Failed to fetch chat history", error);
+                console.error("[Chat Debug] Failed to fetch chat history from API", error);
                 if (!localData || JSON.parse(localData).length === 0) {
                     setMessages([{
                         role: 'assistant',
@@ -207,10 +227,11 @@ export default function AIAssistant() {
 
     // Sync messages to local storage whenever they change
     useEffect(() => {
-        if (user?.id && messages.length > 0) {
+        // SECURITY: Only sync if we have a user and we are explicitly synced to their current state
+        if (user?.id && user.id === currentUserId && messages.length > 0) {
             localStorage.setItem(`chat_${user.id}`, JSON.stringify(messages));
         }
-    }, [messages, user?.id]);
+    }, [messages, user?.id, currentUserId]);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -227,6 +248,7 @@ export default function AIAssistant() {
 
         // Cancel any ongoing speech
         window.speechSynthesis.cancel();
+
 
         // Clean text: remove emojis and markdown-like formatting
         const cleanText = text
@@ -247,6 +269,26 @@ export default function AIAssistant() {
 
         window.speechSynthesis.speak(utterance);
     }, [ttsEnabled]);
+
+    const handleClearChat = async () => {
+        if (!user?.id) return;
+        if (!window.confirm("Are you sure you want to clear your chat history?")) return;
+        try {
+            await api.delete('/dost/history');
+            const localKey = `chat_${user.id}`;
+            localStorage.removeItem(localKey);
+            setMessages([{
+                role: 'assistant',
+                content: getWelcomeMessage(user?.role)
+            }]);
+            setShowQuickActions(true);
+        } catch (error) {
+            console.error("Failed to clear API chat history", error);
+            toast.warning("Could not clear chat from server, but local view is reset.");
+            setMessages([{ role: 'assistant', content: getWelcomeMessage(user?.role) }]);
+            setShowQuickActions(true);
+        }
+    };
 
     const sendMessage = async (messageText: string) => {
         if (!messageText.trim()) return;
@@ -324,7 +366,12 @@ export default function AIAssistant() {
                 console.error('Speech recognition error:', event.error);
                 setIsListening(false);
                 if (event.error === 'not-allowed') {
-                    alert('Microphone access denied. Please allow microphone in browser settings.');
+                    toast.error('Microphone access denied. Please allow microphone in browser settings.', {
+                        description: 'This is required for voice commands.',
+                        duration: 5000,
+                    });
+                } else if (event.error === 'network') {
+                    toast.error('Network error during speech recognition.');
                 }
             };
 
@@ -348,43 +395,57 @@ export default function AIAssistant() {
 
             recognition.start();
         } else {
-            alert('Voice input is not supported in this browser. Use Chrome for best results.');
+            toast.warning('Voice input is not supported in this browser.', {
+                description: 'Please use Chrome or Edge for the best experience.'
+            });
         }
     };
 
+    // Compute mock insights or derive from last message for the panel
+    const lastStructuredData = messages.length > 0 ? messages[messages.length - 1].structuredData : null;
+    const panelInsights = lastStructuredData?.risk ? {
+        riskScore: lastStructuredData.risk.riskScore,
+        delay: '~' + lastStructuredData.risk.estimatedDelayMinutes + ' mins',
+        alternateRoute: lastStructuredData.routeAdvanced?.options?.[0]?.label || 'Route 2 via Expressway',
+        explanation: 'Due to unexpected congestion, we recommend an alternate route to save fuel and time.',
+    } : undefined;
+
     return (
         <>
-            {/* Floating Button */}
-            <Button
-                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl z-[9999] animate-bounce-subtle"
-                onClick={() => setIsOpen(!isOpen)}
-            >
-                {isOpen ? <X className="h-6 w-6" /> : <MessageSquare className="h-6 w-6" />}
-            </Button>
+            <SmartAlerts />
+            <AIOrb 
+                isOpen={isOpen} 
+                onClick={() => setIsOpen(true)} 
+                status={panelInsights?.riskScore ? (panelInsights.riskScore > 50 ? 'warning' : 'normal') : 'normal'} 
+            />
 
-            {/* Chat Window */}
-            {isOpen && (
-                <Card className="fixed bottom-24 right-6 w-80 md:w-96 h-[500px] shadow-2xl z-[9999] flex flex-col animate-in slide-in-from-bottom-10 fade-in">
-                    <CardHeader className="bg-primary text-primary-foreground rounded-t-xl py-3">
-                        <CardTitle className="text-lg flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <Bot className="h-5 w-5" />
-                                TruckNet Dost 🚛
-                            </div>
-                            {/* TTS Toggle */}
-                            <button
-                                onClick={() => {
-                                    setTtsEnabled(!ttsEnabled);
-                                    if (ttsEnabled) window.speechSynthesis?.cancel();
-                                }}
-                                className="p-1 rounded hover:bg-white/20 transition-colors"
-                                title={ttsEnabled ? 'Mute voice' : 'Enable voice responses'}
-                            >
-                                {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
-                            </button>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
+            {/* AI Panel Container */}
+            <div className="relative z-[9999]">
+                <AIPanel isOpen={isOpen} onClose={() => setIsOpen(false)} insights={panelInsights}>
+                    <div className="absolute top-2 right-4 flex gap-1 z-10 bg-white/80 backdrop-blur pb-1 px-1 rounded-b-lg shadow-sm">
+
+                        {/* Clear Chat Button */}
+                        <button
+                            onClick={handleClearChat}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-red-500 transition-colors cursor-pointer"
+                            title="Delete entire chat history"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                        {/* TTS Toggle */}
+                        <button
+                            onClick={() => {
+                                setTtsEnabled(!ttsEnabled);
+                                if (ttsEnabled) window.speechSynthesis?.cancel();
+                            }}
+                            className={`p-1.5 rounded-md transition-colors ${ttsEnabled ? 'bg-primary/10 text-primary' : 'hover:bg-slate-100 text-slate-400'}`}
+                            title={ttsEnabled ? 'Mute voice' : 'Enable voice responses'}
+                        >
+                            {ttsEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                        </button>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
                         {messages.map((msg, idx) => (
                             <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                 <div className={`max-w-[85%] p-3 rounded-lg text-sm ${msg.role === 'user'
@@ -441,12 +502,13 @@ export default function AIAssistant() {
                         )}
 
                         <div ref={messagesEndRef} />
-                    </CardContent>
-                    <div className="p-3 border-t bg-white rounded-b-xl flex gap-2 items-end">
+                    </div>
+                    
+                    <div className="p-3 border-t border-border bg-slate-50 flex gap-2 items-end">
                         <Button
                             variant="ghost"
                             size="icon"
-                            className={isListening ? 'text-red-500 animate-pulse' : ''}
+                            className={`rounded-full shadow-sm bg-white border border-border ${isListening ? 'text-red-500 animate-pulse border-red-200' : 'text-slate-500 hover:text-primary'}`}
                             onClick={startListening}
                             title="Voice input (Hindi/English)"
                         >
@@ -457,17 +519,21 @@ export default function AIAssistant() {
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder="Type or speak in Hindi/English..."
-                            className="flex-1 resize-none border rounded-md px-3 py-2 text-sm text-black placeholder:text-gray-500 bg-white focus:outline-none focus:ring-2 focus:ring-primary min-h-[36px] max-h-[80px]"
+                            placeholder="Type or speak..."
+                            className="flex-1 resize-none rounded-xl border-border px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground bg-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent shadow-sm min-h-[44px] max-h-[100px]"
                             rows={1}
                         />
-                        <Button size="icon" onClick={handleSend} disabled={isLoading || !input.trim()}>
+                        <Button 
+                            size="icon" 
+                            onClick={handleSend} 
+                            disabled={isLoading || !input.trim()}
+                            className="rounded-full h-[44px] w-[44px] shadow-sm"
+                        >
                             <Send className="h-4 w-4" />
                         </Button>
                     </div>
-                </Card >
-            )
-            }
+                </AIPanel>
+            </div>
         </>
     );
 }

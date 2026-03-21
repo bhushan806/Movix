@@ -19,7 +19,9 @@ import {
     Download,
     Upload,
     Truck,
-    User
+    User,
+    Wallet,
+    Receipt
 } from 'lucide-react';
 
 export default function FinancePage() {
@@ -44,7 +46,6 @@ export default function FinancePage() {
             setDocuments(docRes.data.data);
         } catch (error) {
             console.error('Failed to fetch finance data', error);
-            // toast.error("Could not load financial data");
         } finally {
             setLoading(false);
         }
@@ -78,7 +79,7 @@ export default function FinancePage() {
             setUploadOpen(false);
             setUploadForm({ title: '', type: 'Vehicle', expiryDate: '' });
             setSelectedFile(null);
-            fetchData(); // Refresh list
+            fetchData();
         } catch (error) {
             console.error('Upload failed', error);
             toast.error("Upload failed");
@@ -88,20 +89,20 @@ export default function FinancePage() {
     };
 
     return (
-        <div className="container mx-auto p-4 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+        <div className="container mx-auto p-4 md:p-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             {/* Header */}
             <div>
-                <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Finance & Compliance</h1>
-                <p className="text-muted-foreground">Monitor your fleet's financial health and manage regulatory documents.</p>
+                <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 mb-2">Finance & Compliance</h1>
+                <p className="text-slate-500 font-medium">Monitor your fleet's financial health and manage regulatory documents.</p>
             </div>
 
-            <Tabs defaultValue="finance" className="space-y-6">
-                <TabsList className="bg-slate-900/50 border border-slate-800 p-1">
-                    <TabsTrigger value="finance" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+            <Tabs defaultValue="finance" className="space-y-8">
+                <TabsList className="bg-slate-100/80 backdrop-blur border border-slate-200 p-1.5 rounded-xl block sm:inline-flex w-full sm:w-auto h-auto">
+                    <TabsTrigger value="finance" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm rounded-lg px-6 py-2.5 text-slate-600 font-medium w-full sm:w-auto">
                         <DollarSign className="w-4 h-4 mr-2" />
-                        Finance
+                        Finance Overview
                     </TabsTrigger>
-                    <TabsTrigger value="documents" className="data-[state=active]:bg-blue-600 data-[state=active]:text-white">
+                    <TabsTrigger value="documents" className="data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm rounded-lg px-6 py-2.5 text-slate-600 font-medium w-full sm:w-auto mt-2 sm:mt-0">
                         <FileText className="w-4 h-4 mr-2" />
                         Document Vault
                     </TabsTrigger>
@@ -110,76 +111,100 @@ export default function FinancePage() {
                 {/* --- FINANCE TAB --- */}
                 <TabsContent value="finance" className="space-y-6">
                     {/* Stats Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card className="bg-slate-900/50 border-slate-800">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-slate-400">Total Revenue (Monthly)</CardTitle>
-                                <DollarSign className="h-4 w-4 text-green-500" />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <Card className="border-0 shadow-sm bg-white overflow-hidden relative group">
+                            <div className="absolute -top-6 -right-6 p-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500 pointer-events-none">
+                                <Wallet className="w-32 h-32" />
+                            </div>
+                            <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
+                                <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Revenue</CardTitle>
+                                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-xl">
+                                    <DollarSign className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-white">₹{financeData.summary?.totalRevenue?.toLocaleString() || '0'}</div>
-                                <p className="text-xs text-green-500 flex items-center mt-1">
-                                    <TrendingUp className="h-3 w-3 mr-1" />
-                                    +12.5% from last month
+                            <CardContent className="z-10 relative">
+                                <div className="text-4xl font-extrabold text-slate-900 tracking-tight">₹{financeData.summary?.totalRevenue?.toLocaleString() || '0'}</div>
+                                <p className="text-sm font-semibold text-emerald-600 flex items-center mt-3 bg-emerald-50 w-fit px-2 py-1 rounded-md border border-emerald-100/50">
+                                    <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                                    +12.5% vs last month
                                 </p>
                             </CardContent>
                         </Card>
-                        <Card className="bg-slate-900/50 border-slate-800">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-slate-400">Total Expenses</CardTitle>
-                                <CreditCard className="h-4 w-4 text-orange-500" />
+                        
+                        <Card className="border-0 shadow-sm bg-white overflow-hidden relative group">
+                            <div className="absolute -top-6 -right-6 p-4 opacity-[0.03] group-hover:scale-110 transition-transform duration-500 pointer-events-none">
+                                <Receipt className="w-32 h-32" />
+                            </div>
+                            <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
+                                <CardTitle className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Total Expenses</CardTitle>
+                                <div className="p-2.5 bg-red-50 text-red-500 rounded-xl">
+                                    <CreditCard className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-white">₹{financeData.summary?.totalExpenses?.toLocaleString() || '0'}</div>
-                                <p className="text-xs text-orange-500 flex items-center mt-1">
-                                    <TrendingDown className="h-3 w-3 mr-1" />
+                            <CardContent className="z-10 relative">
+                                <div className="text-4xl font-extrabold text-slate-900 tracking-tight">₹{financeData.summary?.totalExpenses?.toLocaleString() || '0'}</div>
+                                <p className="text-sm font-semibold text-amber-600 flex items-center mt-3 bg-amber-50 w-fit px-2 py-1 rounded-md border border-amber-100/50">
+                                    <TrendingDown className="h-3.5 w-3.5 mr-1" />
                                     +5.2% (Fuel Costs)
                                 </p>
                             </CardContent>
                         </Card>
-                        <Card className="bg-blue-900/20 border-blue-800/50">
-                            <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-sm font-medium text-blue-300">Net Profit</CardTitle>
-                                <DollarSign className="h-4 w-4 text-blue-400" />
+                        
+                        <Card className="border-0 shadow-md shadow-blue-600/10 bg-gradient-to-br from-blue-600 to-blue-700 overflow-hidden relative text-white hover:shadow-lg transition-shadow">
+                            <div className="absolute -right-4 -bottom-4 bg-white/10 w-32 h-32 rounded-full blur-2xl pointer-events-none" />
+                            <CardHeader className="flex flex-row items-center justify-between pb-2 z-10 relative">
+                                <CardTitle className="text-sm font-semibold text-blue-100 uppercase tracking-wider">Net Profit</CardTitle>
+                                <div className="p-2.5 bg-white/20 text-white rounded-xl backdrop-blur-sm">
+                                    <TrendingUp className="h-4 w-4" />
+                                </div>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold text-blue-400">₹{financeData.summary?.netProfit?.toLocaleString() || '0'}</div>
-                                <p className="text-xs text-blue-300 mt-1">Margin: 67%</p>
+                            <CardContent className="z-10 relative">
+                                <div className="text-4xl font-extrabold tracking-tight">₹{financeData.summary?.netProfit?.toLocaleString() || '0'}</div>
+                                <p className="text-sm font-semibold text-blue-100 mt-3 flex items-center bg-black/10 w-fit px-2 py-1 rounded-md">
+                                    Margin: 67%
+                                </p>
                             </CardContent>
                         </Card>
                     </div>
 
                     {/* Transactions List */}
-                    <Card className="bg-slate-900/50 border-slate-800">
-                        <CardHeader>
-                            <CardTitle className="text-white">Recent Transactions</CardTitle>
-                            <CardDescription>Latest financial activity from your fleet.</CardDescription>
+                    <Card className="border-slate-200 shadow-sm bg-white overflow-hidden rounded-2xl">
+                        <CardHeader className="border-b border-slate-100 bg-slate-50/50 pb-5 pt-6 px-6">
+                            <CardTitle className="text-xl font-extrabold text-slate-900">Recent Transactions</CardTitle>
+                            <CardDescription className="text-slate-500 font-medium mt-1">Latest financial activity from your fleet.</CardDescription>
                         </CardHeader>
-                        <CardContent>
-                            <div className="space-y-4">
+                        <CardContent className="p-0">
+                            <div className="divide-y divide-slate-100">
                                 {financeData.transactions?.map((tx: any) => (
-                                    <div key={tx._id} className="flex items-center justify-between p-4 rounded-lg bg-black/20 border border-white/5">
-                                        <div className="flex items-center gap-4">
-                                            <div className={`p-2 rounded-full ${tx.type === 'income' ? 'bg-green-500/20 text-green-500' : 'bg-red-500/20 text-red-500'}`}>
-                                                {tx.type === 'income' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                                    <div key={tx._id} className="flex flex-col sm:flex-row sm:items-center justify-between p-6 hover:bg-slate-50/80 transition-colors gap-4">
+                                        <div className="flex items-center gap-5">
+                                            <div className={`p-4 rounded-2xl shadow-sm border ${tx.type === 'income' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-red-50 border-red-100 text-red-500'}`}>
+                                                {tx.type === 'income' ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
                                             </div>
                                             <div>
-                                                <p className="font-medium text-white">{tx.description}</p>
-                                                <p className="text-xs text-slate-400">{new Date(tx.date).toLocaleDateString()}</p>
+                                                <p className="font-bold text-slate-800 text-lg">{tx.description}</p>
+                                                <p className="text-sm font-semibold text-slate-500 mt-0.5">{new Date(tx.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</p>
                                             </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className={`font-bold ${tx.type === 'income' ? 'text-green-500' : 'text-white'}`}>
+                                        <div className="text-left sm:text-right pl-16 sm:pl-0">
+                                            <p className={`font-extrabold text-xl sm:text-2xl ${tx.type === 'income' ? 'text-emerald-600' : 'text-slate-900'}`}>
                                                 {tx.type === 'income' ? '+' : '-'} ₹{tx.amount.toLocaleString()}
                                             </p>
-                                            <Badge variant="outline" className="text-[10px] h-5 border-slate-700 text-slate-400">
+                                            <Badge variant="outline" className="text-[11px] uppercase font-bold tracking-wider rounded-md mt-1.5 border-slate-200 text-slate-500 bg-slate-50">
                                                 {tx.status}
                                             </Badge>
                                         </div>
                                     </div>
                                 ))}
+                                
                                 {(!financeData.transactions || financeData.transactions.length === 0) && (
-                                    <div className="text-center text-slate-500 py-8">No transactions found.</div>
+                                    <div className="flex flex-col items-center justify-center py-20 px-4 bg-slate-50/50">
+                                        <div className="w-20 h-20 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-center shadow-sm mb-5 text-slate-300">
+                                            <Receipt className="w-10 h-10" />
+                                        </div>
+                                        <h3 className="text-xl font-extrabold text-slate-700 mb-2">No transactions yet</h3>
+                                        <p className="text-slate-500 font-medium text-center max-w-md">When your fleet completes trips or incurs expenses, they will appear here automatically.</p>
+                                    </div>
                                 )}
                             </div>
                         </CardContent>
@@ -188,41 +213,41 @@ export default function FinancePage() {
 
                 {/* --- DOCUMENTS TAB --- */}
                 <TabsContent value="documents" className="space-y-6">
-                    <div className="flex justify-between items-center">
-                        <div className="flex gap-2">
-                            <Button variant="outline" className="border-slate-700 text-slate-300 hover:text-white hover:bg-slate-800">
-                                All
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div className="flex gap-2 bg-slate-100/80 p-1.5 rounded-xl border border-slate-200 w-full sm:w-auto overflow-x-auto">
+                            <Button variant="ghost" className="bg-white shadow-sm text-slate-800 rounded-lg hover:bg-white flex-shrink-0 font-semibold px-5">
+                                All Documents
                             </Button>
-                            <Button variant="ghost" className="text-slate-400 hover:text-white">Vehicles</Button>
-                            <Button variant="ghost" className="text-slate-400 hover:text-white">Drivers</Button>
+                            <Button variant="ghost" className="text-slate-500 hover:text-slate-800 font-medium hover:bg-slate-200/50 rounded-lg flex-shrink-0 px-5">Vehicles</Button>
+                            <Button variant="ghost" className="text-slate-500 hover:text-slate-800 font-medium hover:bg-slate-200/50 rounded-lg flex-shrink-0 px-5">Drivers</Button>
                         </div>
 
                         <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
                             <DialogTrigger asChild>
-                                <Button className="bg-blue-600 hover:bg-blue-500">
-                                    <Upload className="h-4 w-4 mr-2" />
-                                    Upload New
+                                <Button className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-600/20 rounded-xl font-semibold w-full sm:w-auto h-12 px-6">
+                                    <Upload className="h-5 w-5 mr-2" />
+                                    Upload New Document
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="bg-slate-900 border-slate-800 text-white">
+                            <DialogContent className="bg-white border-slate-200 text-slate-900 rounded-2xl shadow-xl sm:max-w-md">
                                 <DialogHeader>
-                                    <DialogTitle>Upload Document</DialogTitle>
-                                    <DialogDescription className="text-slate-400">Add a new document to your secure vault.</DialogDescription>
+                                    <DialogTitle className="text-xl font-extrabold text-slate-900">Upload Document</DialogTitle>
+                                    <DialogDescription className="text-slate-500 font-medium text-base">Add a new document to your secure vault.</DialogDescription>
                                 </DialogHeader>
-                                <div className="space-y-4 pt-4">
-                                    <div className="space-y-2">
-                                        <Label>Document Title</Label>
+                                <div className="space-y-5 pt-4">
+                                    <div className="space-y-2.5">
+                                        <Label className="text-slate-800 font-bold">Document Title</Label>
                                         <Input
                                             placeholder="e.g. Vehicle Insurance"
                                             value={uploadForm.title}
                                             onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
-                                            className="bg-slate-800 border-slate-700"
+                                            className="bg-slate-50 border-slate-200 rounded-xl h-12 font-medium focus-visible:ring-blue-600"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Type</Label>
+                                    <div className="space-y-2.5">
+                                        <Label className="text-slate-800 font-bold">Type</Label>
                                         <select
-                                            className="w-full h-10 rounded-md border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+                                            className="w-full h-12 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-base text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-600 font-medium"
                                             value={uploadForm.type}
                                             onChange={(e) => setUploadForm({ ...uploadForm, type: e.target.value })}
                                         >
@@ -232,24 +257,26 @@ export default function FinancePage() {
                                             <option value="Other">Other</option>
                                         </select>
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Expiry Date</Label>
+                                    <div className="space-y-2.5">
+                                        <Label className="text-slate-800 font-bold">Expiry Date</Label>
                                         <Input
                                             type="date"
                                             value={uploadForm.expiryDate}
                                             onChange={(e) => setUploadForm({ ...uploadForm, expiryDate: e.target.value })}
-                                            className="bg-slate-800 border-slate-700"
+                                            className="bg-slate-50 border-slate-200 rounded-xl h-12 font-medium focus-visible:ring-blue-600"
                                         />
                                     </div>
-                                    <div className="space-y-2">
-                                        <Label>Document File</Label>
-                                        <Input
-                                            type="file"
-                                            onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
-                                            className="bg-slate-800 border-slate-700"
-                                        />
+                                    <div className="space-y-2.5">
+                                        <Label className="text-slate-800 font-bold">Document File</Label>
+                                        <div className="relative">
+                                            <Input
+                                                type="file"
+                                                onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)}
+                                                className="bg-slate-50 border-slate-200 rounded-xl h-12 focus-visible:ring-blue-600 file:bg-blue-50 file:text-blue-700 file:border-0 file:rounded-lg file:px-4 file:py-1.5 file:mr-4 file:font-bold hover:file:bg-blue-100 cursor-pointer pt-2"
+                                            />
+                                        </div>
                                     </div>
-                                    <Button className="w-full bg-blue-600 hover:bg-blue-500" onClick={handleUpload} disabled={uploading}>
+                                    <Button className="w-full bg-blue-600 hover:bg-blue-700 rounded-xl h-12 font-bold text-base text-white shadow-md shadow-blue-600/20 mt-4" onClick={handleUpload} disabled={uploading}>
                                         {uploading ? 'Uploading...' : 'Save Document'}
                                     </Button>
                                 </div>
@@ -257,34 +284,48 @@ export default function FinancePage() {
                         </Dialog>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {documents.map((doc: any) => (
-                            <Card key={doc._id} className="bg-slate-900/50 border-slate-800 hover:bg-slate-900 transition-colors group">
-                                <CardContent className="p-4 flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="p-3 bg-blue-500/10 rounded-lg text-blue-400 group-hover:bg-blue-500/20 transition-colors">
+                            <Card key={doc._id} className="bg-white border-slate-200 shadow-sm hover:shadow-md transition-shadow group rounded-2xl overflow-hidden">
+                                <CardContent className="p-6 flex items-start justify-between">
+                                    <div className="flex items-start gap-5">
+                                        <div className="p-3.5 bg-slate-50 border border-slate-100 rounded-xl text-blue-600 group-hover:bg-blue-50 group-hover:border-blue-200 transition-colors shadow-sm">
                                             {doc.type === 'Vehicle' ? <Truck className="h-6 w-6" /> : <User className="h-6 w-6" />}
                                         </div>
                                         <div>
-                                            <h4 className="font-medium text-white">{doc.title}</h4>
-                                            <div className="flex items-center gap-2 mt-1">
-                                                <span className="text-xs text-slate-400">Expires: {new Date(doc.expiryDate).toLocaleDateString()}</span>
-                                                {doc.status === 'valid' && <Badge className="bg-green-500/20 text-green-400 border-none h-5 text-[10px]">Valid</Badge>}
-                                                {doc.status === 'expiring' && <Badge className="bg-yellow-500/20 text-yellow-400 border-none h-5 text-[10px]">Expiring Soon</Badge>}
-                                                {doc.status === 'expired' && <Badge className="bg-red-500/20 text-red-400 border-none h-5 text-[10px]">Expired</Badge>}
+                                            <h4 className="font-extrabold text-slate-900 text-lg line-clamp-1">{doc.title}</h4>
+                                            <p className="text-sm font-semibold text-slate-500 mt-0.5 mb-3">Expires: {new Date(doc.expiryDate).toLocaleDateString()}</p>
+                                            <div className="flex items-center gap-2">
+                                                {doc.status === 'valid' && <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-lg shadow-sm">Valid</Badge>}
+                                                {doc.status === 'expiring' && <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-lg shadow-sm">Expiring Soon</Badge>}
+                                                {doc.status === 'expired' && <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider rounded-lg shadow-sm">Expired</Badge>}
                                             </div>
                                         </div>
                                     </div>
-                                    <div className="flex gap-2">
+                                    <div className="flex-shrink-0">
                                         <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                                            <Button size="icon" variant="ghost" className="text-slate-400 hover:text-white">
-                                                <Download className="h-4 w-4" />
+                                            <Button size="icon" variant="outline" className="rounded-xl h-12 w-12 border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-200 shadow-sm transition-colors">
+                                                <Download className="h-5 w-5" />
                                             </Button>
                                         </a>
                                     </div>
                                 </CardContent>
                             </Card>
                         ))}
+                        
+                        {documents.length === 0 && (
+                            <div className="col-span-full flex flex-col items-center justify-center py-20 px-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl text-center">
+                                <div className="w-20 h-20 bg-white border border-slate-100 rounded-[2rem] flex items-center justify-center shadow-sm mb-5 text-slate-300">
+                                    <FileText className="w-10 h-10" />
+                                </div>
+                                <h3 className="text-xl font-extrabold text-slate-700 mb-2">Your vault is empty</h3>
+                                <p className="text-slate-500 font-medium max-w-sm mb-8 text-lg">Upload insurance, permits, and driver licenses here to keep your fleet compliant and organized.</p>
+                                <Button className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md h-12 px-6 font-bold text-base" onClick={() => setUploadOpen(true)}>
+                                    <Upload className="h-5 w-5 mr-2" />
+                                    Upload First Document
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </TabsContent>
             </Tabs>

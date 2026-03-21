@@ -11,8 +11,10 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Star, MapPin, Navigation, Clock, Shield, DollarSign, Award, Truck, Package } from 'lucide-react';
 import MapComponent from '@/components/map/Map';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 import { useAuth } from '@/lib/auth-context';
 import AIAssistant from '@/components/ai/AIAssistant';
+import IntelligencePanel from '@/components/driver/IntelligencePanel';
 
 export default function DriverDashboard() {
     const { user } = useAuth();
@@ -63,10 +65,10 @@ export default function DriverDashboard() {
         setUpdatingLoadId(loadId);
         try {
             await api.patch(`/loads/${loadId}/status`, { status: newStatus });
-            alert(`Load status updated to ${newStatus.replace(/_/g, ' ')}!`);
+            toast.success(`Load status updated to ${newStatus.replace(/_/g, ' ')}!`);
             fetchLoads();
         } catch (error: any) {
-            alert(error.response?.data?.message || 'Failed to update status');
+            toast.error(error.response?.data?.message || 'Failed to update status');
         } finally {
             setUpdatingLoadId(null);
         }
@@ -79,11 +81,14 @@ export default function DriverDashboard() {
             const currentLng = 73.8567;
             const res = await api.post('/ai/sos', { lat: currentLat, lng: currentLng });
             if (res.data.status === 'success') {
-                alert(`SMART SOS TRIGGERED!\n\n${res.data.data.alert}`);
+                toast.error('SMART SOS TRIGGERED!', {
+                    description: res.data.data.alert,
+                    duration: 10000,
+                });
             }
         } catch (error: any) {
             console.error('Failed to trigger SOS', error);
-            alert('SOS Failed! Call Police manually.');
+            toast.error('SOS Failed! Call Police manually.');
         }
     };
 
@@ -199,8 +204,11 @@ export default function DriverDashboard() {
                     </Card>
                 </div>
 
-                {/* Right Column: Assigned Loads */}
+                {/* Right Column: Intelligence & Assigned Loads */}
                 <div className="space-y-6">
+                    {/* Driver Intelligence Panel */}
+                    <IntelligencePanel />
+
                     {/* Connection Requests */}
                     <ConnectionRequests />
 
@@ -286,7 +294,7 @@ function ConnectionRequests() {
     const handleRespond = async (id: string, status: 'ACCEPTED' | 'REJECTED') => {
         try {
             await api.post(`/requests/${id}/respond`, { status });
-            alert(`Request ${status.toLowerCase()}!`);
+            toast.success(`Request ${status.toLowerCase()}!`);
             fetchRequests();
         } catch (error) {
             console.error('Failed to respond', error);

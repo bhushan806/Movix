@@ -98,52 +98,72 @@
   }
 }
 
-/* Aurora Glass Theme */
+/* Modern Light Theme */
 :root {
-  /* Background: Deep Aurora Gradient handled in body class, but setting base fallback */
-  --background: #0B1121;
-  --foreground: #FFFFFF;
+  /* Background: Soft slate/gray for professional SaaS look */
+  --background: #F8FAFC;
+  --foreground: #0F172A;
 
-  /* Card: Frosted White Glass */
-  /* bg-white/10 + backdrop-blur-xl */
-  --card: rgba(255, 255, 255, 0.1);
-  --card-foreground: #FFFFFF;
+  /* Card: Crisp White with subtle borders */
+  --card: #FFFFFF;
+  --card-foreground: #0F172A;
 
-  --popover: rgba(11, 17, 33, 0.95);
-  --popover-foreground: #FFFFFF;
+  --popover: #FFFFFF;
+  --popover-foreground: #0F172A;
 
-  /* Primary: Cyan to Blue Gradient logic handled in classes, base color for components */
-  --primary: #22d3ee;
-  /* Cyan-400 */
-  --primary-foreground: #000000;
+  /* Primary: Blue-600 */
+  --primary: #2563EB;
+  --primary-foreground: #FFFFFF;
 
-  --secondary: rgba(255, 255, 255, 0.05);
-  --secondary-foreground: #FFFFFF;
+  /* Secondary: Soft Gray */
+  --secondary: #F1F5F9;
+  --secondary-foreground: #0F172A;
 
-  --muted: rgba(255, 255, 255, 0.05);
-  --muted-foreground: #94A3B8;
+  /* Muted */
+  --muted: #F1F5F9;
+  --muted-foreground: #64748B;
 
-  --accent: #22d3ee;
-  --accent-foreground: #000000;
+  /* Accent: Emerald-500 */
+  --accent: #10B981;
+  --accent-foreground: #FFFFFF;
 
-  --destructive: #F97316;
+  /* Warning: Amber-500 */
+  --warning: #F59E0B;
+  --warning-foreground: #FFFFFF;
+
+  /* Destructive/Danger: Red-500 */
+  --destructive: #EF4444;
   --destructive-foreground: #FFFFFF;
 
-  /* Border: Crisp White Border */
-  --border: rgba(255, 255, 255, 0.2);
-  --input: rgba(255, 255, 255, 0.1);
-  --ring: #22d3ee;
+  /* Border */
+  --border: #E2E8F0;
+  --input: #E2E8F0;
+  --ring: #2563EB;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+
+  /* Global Keyboard Focus Ring (Accessibility) */
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    @apply ring-2 ring-primary ring-offset-2 ring-offset-background outline-none;
+    outline: none !important; /* Standard CSS !important is allowed outside @apply */
+  }
+
+  /* Hide focus rings for mouse users */
+  :focus:not(:focus-visible) {
+    outline: none !important;
+    box-shadow: none !important;
   }
 
   body {
-    @apply text-foreground antialiased min-h-screen;
-    /* Deep Aurora Gradient: Slate-900 -> #0B1121 -> Slate-900 */
-    background-image: linear-gradient(to bottom right, #0f172a, #0b1121, #0f172a);
+    @apply bg-background text-foreground antialiased min-h-screen;
     font-family: var(--font-inter);
   }
 
@@ -159,31 +179,28 @@
 
 @layer utilities {
 
-  /* Frosted White Glass Card */
+  /* Modern White Card */
   .glass-card {
-    @apply bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl;
-    /* 3D Depth */
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    @apply bg-card border border-border/60 shadow-sm rounded-xl;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
   }
 
   .glass-card:hover {
-    @apply -translate-y-1;
-    box-shadow: 0 10px 40px -10px rgba(34, 211, 238, 0.2);
+    @apply -translate-y-0.5 shadow-md border-border;
   }
 
-  /* Neon Gradient Button */
+  /* Modern Primary Button */
   .btn-neon {
-    @apply bg-gradient-to-r from-cyan-400 to-blue-600 text-white shadow-lg shadow-cyan-500/30 transition-all hover:scale-105 active:scale-95;
+    @apply bg-primary text-white shadow-sm hover:bg-primary/90 transition-all hover:scale-[1.02] active:scale-[0.98];
   }
 
-  /* Frosted Sidebar / Panel */
+  /* Right Side Panel / Sidebar */
   .glass-panel {
-    @apply bg-white/10 backdrop-blur-xl border border-white/20;
+    @apply bg-white border border-border shadow-lg;
   }
 
-  /* Text Glow */
+  /* Text Highlight */
   .text-glow {
-    text-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
-    /* Cyan glow */
+    @apply text-primary font-medium;
   }
 }

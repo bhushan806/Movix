@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 import { MapPin, Calendar, Truck, User } from 'lucide-react';
 
 export default function DispatchPage() {
@@ -40,10 +41,10 @@ export default function DispatchPage() {
         setAssigning(rideId);
         try {
             await api.post(`/rides/${rideId}/assign`, { driverId: selectedDriver });
-            alert('Driver assigned successfully!');
+            toast.success('Driver assigned successfully!');
             fetchData(); // Refresh list
         } catch (error: any) {
-            alert(error.response?.data?.message || 'Failed to assign driver');
+            toast.error(error.response?.data?.message || 'Failed to assign driver');
         } finally {
             setAssigning(null);
             setSelectedDriver('');
@@ -107,6 +108,9 @@ export default function DispatchPage() {
                                     <DialogContent className="sm:max-w-[500px]">
                                         <DialogHeader>
                                             <DialogTitle>Assign Driver</DialogTitle>
+                                            <DialogDescription className="sr-only">
+                                                Select a driver from your fleet to assign to this specific load shipment.
+                                            </DialogDescription>
                                         </DialogHeader>
                                         <div className="space-y-6 py-4">
                                             <div className="space-y-2">

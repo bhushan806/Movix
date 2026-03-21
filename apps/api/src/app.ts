@@ -26,6 +26,8 @@ import requestRoutes from './routes/request.routes';
 import financeRoutes from './routes/finance.routes';
 import documentRoutes from './routes/document.routes';
 import dostRoutes from './routes/dost.routes';
+import predictiveRoutes from './routes/predictive.routes';
+import intelligenceRoutes from './routes/intelligence.routes';
 
 import { connectMongoose } from './config/mongoose';
 
@@ -86,6 +88,8 @@ app.use('/api/requests', requestRoutes);
 app.use('/api/finance', financeRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/dost', dostRoutes);
+app.use('/api/predictive', predictiveRoutes);
+app.use('/api/intelligence', intelligenceRoutes);
 
 // ── 404 Handler ──
 app.all('*', (req, _res, next) => {
@@ -99,6 +103,14 @@ app.use(errorHandler);
 const PORT = env.PORT || 5000;
 httpServer.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`, { environment: env.NODE_ENV });
+
+    // Start Predictive Intelligence Monitoring Loop
+    import('./ai/predictive').then(({ MonitoringService }) => {
+        MonitoringService.getInstance().start();
+        logger.info('🔮 Predictive Intelligence Engine initialized');
+    }).catch(err => {
+        logger.warn('Predictive engine failed to start (non-blocking)', { error: err.message });
+    });
 });
 
 // ── Background: Load expiration scheduler (every 15 min) ──
@@ -111,3 +123,14 @@ setInterval(async () => {
         logger.error('Load expiration failed', { error: error.message });
     }
 }, 15 * 60 * 1000);
+
+// ── Process-Level Crash Safety ──
+process.on('unhandledRejection', (reason: any) => {
+    logger.error('UNHANDLED REJECTION — shutting down gracefully', { error: reason?.message || reason });
+    httpServer.close(() => process.exit(1));
+});
+
+process.on('uncaughtException', (error: Error) => {
+    logger.error('UNCAUGHT EXCEPTION — shutting down', { error: error.message, stack: error.stack });
+    process.exit(1);
+});

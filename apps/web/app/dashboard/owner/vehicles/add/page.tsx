@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ArrowLeft, Truck, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import api from '@/lib/api';
+import { toast } from 'sonner';
 
 export default function AddVehiclePage() {
     const router = useRouter();
@@ -29,11 +30,12 @@ export default function AddVehiclePage() {
                 ...formData,
                 capacity: Number(formData.capacity)
             });
+            toast.success('Vehicle added successfully!');
             router.push('/dashboard/owner/vehicles');
             router.refresh();
         } catch (error: any) {
             console.error(error);
-            alert(error.response?.data?.message || 'Failed to add vehicle');
+            toast.error(error.response?.data?.message || 'Failed to add vehicle');
         } finally {
             setLoading(false);
         }
